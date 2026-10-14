@@ -13,7 +13,7 @@
 
   // 1) Run:  npx wrangler d1 create dialogue-dungeon   2) paste the database_id it prints below.
   "d1_databases": [
-    { "binding": "DB", "database_name": "dialogue-dungeon", "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID" }
+    { "binding": "DB", "database_name": "dialogue-dungeon", "database_id": "7ff5dafb-5732-4f88-89fa-ab0b5d3514ff" }
   ],
 
   // Workers AI: only used when a pupil types a verb that is not in the verb bank (Mode 3).
