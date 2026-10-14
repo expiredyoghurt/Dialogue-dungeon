@@ -1,0 +1,110 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dialogue Dungeon</title><style>
+:root{--bg:#14101c;--p:#231b33;--t:#f1e9d8;--m:#a89bb8;--g:#f2c14e;--ok:#5fcf80;--bad:#e5586a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:16px/1.5 Georgia,serif}main{max-width:760px;margin:0 auto;padding:14px}
+.card{background:var(--p);border:1px solid #3a2f52;border-radius:12px;padding:14px;margin:12px 0}h2,h3{margin:.2em 0}
+button{font:inherit;background:#6b4fbb;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.alt{background:#3a2f52}
+input,textarea,select{font:inherit;padding:8px;border-radius:8px;border:1px solid #5a4a7a;background:#1b1428;color:var(--t)}textarea,input:not([type=checkbox]){width:100%}select{max-width:62%}
+.bar{height:14px;background:#0d0a14;border-radius:7px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:#d94a5c;transition:width .3s}.bar.x i{background:#4aa3d9}.bar.t i{background:var(--g);transition:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}.grow{flex:1;min-width:150px}.mob{font-size:64px;text-align:center}
+.flow{line-height:2.4;font-size:18px}.tok{cursor:pointer;border-radius:4px}.tok.g{display:inline-block;min-width:9px;border-bottom:1px dotted #77669a}.tok.sel{background:#6b4fbb}
+.fix{width:6em!important;display:inline-block;padding:2px 6px}.good{color:var(--ok)}.badc{color:var(--bad)}.m{color:var(--m)}
+.arena{position:relative;height:150px;overflow:hidden;border-radius:10px;background:linear-gradient(#2a2140,#1b1428)}.spr{position:absolute;bottom:14px;font-size:64px;line-height:1}
+.dmg{position:absolute;top:28%;font-weight:bold;font-size:26px;pointer-events:none;text-shadow:0 1px 3px #000}.dmg.pd{color:#ffe07a}.dmg.md{color:#ff6b7d}.dmg.heal{color:#6ee79a}.dmg.bonus{color:#ffc23a;font-size:38px}.proj{position:absolute;top:50%;font-size:26px;pointer-events:none}
+.bar{position:relative}.bar i{position:relative;z-index:1}.bar b{position:absolute;left:0;top:0;height:100%;width:0;background:#f0b4b4;transition:width .9s .35s}.bar.t b{display:none}.bar.low i{background:#ff8a3d}
+.popin{animation:popin .5s}@keyframes popin{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+</style></head><body><main id="app"></main><script>
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const app=document.getElementById('app');let token=sessionStorage.dd||'',S=null,dl=0,busy=false,scr=null,U={};
+const bar=(c,p)=>{const b=el('div','bar '+c),i=el('i'),g=el('b');i.style.width=g.style.width=Math.max(0,Math.min(100,p))+'%';b.append(i,g);return b};
+let dlP=0,dlM=0,pend=0,q0=Promise.resolve(),motion=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+const setDl=()=>{if(S&&S.fight){const n=performance.now(),f=S.fight;dlP=n+f.pNext-f.now;dlM=n+f.mNext-f.now}};
+const ptxt=o=>S.perkDefs.filter(([k])=>o&&o[k]).map(([k,l,pc])=>l.replace(/ ?%/,'')+' +'+(pc?Math.round(o[k]*100)+'%':o[k])).join(', ');
+const st=i=>[i.atk&&'+'+i.atk+' damage',i.def&&'-'+i.def+' damage taken',i.gold&&'+'+i.gold*100+'% gold',i.xp&&'+'+i.xp*100+'% XP',i.fam&&'for the '+i.fam+' line',i.heal&&(i.slot==='use'?'heals '+i.heal:'heals '+i.heal+' after wins')].filter(Boolean).join(', ');
+async function api(p,m='GET',b){const r=await fetch(p,{method:m,headers:{'content-type':'application/json',authorization:'Bearer '+token},body:b?JSON.stringify(b):undefined});const d=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401){token='';delete sessionStorage.dd;login(d.error)}throw new Error(d.error||'Something went wrong.')}return d}
+function login(msg){app.replaceChildren();const c=el('div','card');c.append(el('h1',0,'⚔️ Dialogue Dungeon'),el('p','m','Sign in with your class code, or play as a guest.'));if(msg)c.append(el('p','badc',msg));const code=el('input'),user=el('input');code.placeholder='Class code';user.placeholder='Your username';const a=el('button',0,'Enter the dungeon'),g=el('button','alt','Play as guest');a.onclick=()=>auth('/api/login',{code:code.value,username:user.value});g.onclick=()=>auth('/api/guest',{});c.append(code,el('p'),user,el('p'),a,' ',g);app.append(c)}
+async function auth(p,b){try{const d=await api(p,'POST',b);token=d.token;sessionStorage.dd=token;boot()}catch(e){login(e.message)}}
+async function boot(){try{S=await api('/api/game/state');go()}catch(e){login(e.message)}}
+function go(){setDl();S.fight?fight():S.ended?end():(scr||village)()}
+async function act(p,b){try{S=await api('/api/game/'+p,'POST',b||{});go()}catch(e){alert(e.message)}}
+function village(){scr=village;const m=S.me;app.replaceChildren();const c=el('div','card');
+ c.append(el('h2',0,'🏘️ '+m.name+' · '+S.jobTree[m.job].n+' · Lv '+m.level),el('div','m','HP '+m.hp+'/'+m.maxHp),bar('',m.hp/m.maxHp*100),el('div','m','XP '+m.xp+'/'+m.need),bar('x',m.xp/m.need*100),el('p',0,'💰 '+m.gold+'   ⚔️ hits 1 to '+m.atk+'   🛡️ '+m.def+' armour'));
+ const pb=el('button',0,'👤 Profile & jobs'+(m.free?' ('+m.free+' job point!)':''));pb.onclick=profile;c.append(pb);
+ const f=el('div','card');f.append(el('h3',0,'Dungeon'));
+ const F=S.floors,r0=el('div','row'),fi=el('input');fi.type='number';fi.min=1;fi.max=F.max;fi.value=F.max;fi.style.width='6em';const info=el('p','m'),pr=n=>F.kills['n'+n]==null?'not explored yet':(F.kills[n]||0)+' of '+F.kills['n'+n]+' monsters defeated',clamp=()=>Math.min(F.max,Math.max(1,Math.round(+fi.value||1))),upd=()=>{const n=clamp();info.textContent='Floor '+n+': '+pr(n)+'. Defeat every monster to find the stairs down. Floor N monsters are level 1 to N; every 5th floor ends with a mid-boss and every 10th with a boss.'};fi.oninput=upd;const eb=el('button',0,'Enter floor');eb.onclick=()=>act('start',{floor:clamp()});r0.append('Floor ',fi,' of '+F.max+' unlocked ',eb);
+ upd();f.append(r0,info);
+ const s=el('div','card');s.append(el('h3',0,'🛒 Adventurer shop · level '+m.stage+' of 4'));
+ if(m.stage<m.stageMax){const c0=S.shopCost[m.stage-1],ub=el('button',0,'⬆️ Upgrade the shop to level '+(m.stage+1)+' — '+c0+' gold');ub.disabled=m.gold<c0;ub.onclick=()=>act('upgrade');s.append(ub)}
+ else s.append(el('p','m',['Unlock the Adventurer job to be able to upgrade the shop.','Unlock a branch class (Fighter, Archer or Acolyte) to upgrade the shop again.','Unlock a top-tier class (such as Knight or Paladin) for the final upgrade.','The shop is fully upgraded!'][m.stage-1]));
+ S.shop.map(id=>[id,S.items[id]]).forEach(([id,i])=>{const own=i.slot!=='use'&&S.inv[id],r=el('div','row');r.append(el('span','grow',i.e+' '+i.n+' — '+st(i)+(i.slot==='use'?' (have '+(S.inv[id]||0)+')':'')));const b=el('button','alt',own?'Owned':'Buy '+i.price+'g');b.disabled=!!own||m.gold<i.price;b.onclick=()=>act('buy',{item:id});r.append(b);s.append(r)});
+ app.append(c,f,s)}
+function profile(){scr=profile;const m=S.me,J=S.jobTree,ch=j=>{const c=[];for(let y=j;y;y=J[y]&&J[y].p)c.push(y);return c},ok=i=>!i.fam||ch(m.job).includes(i.fam)||(m.job==='adventurer'&&i.slot==='weapon'&&i.st===3);app.replaceChildren();const c=el('div','card');
+ c.append(el('h2',0,'👤 '+m.name+' · Lv '+m.level),el('p',0,J[m.job].e+' '+J[m.job].n+': base damage '+m.base+' + weapon = up to '+m.atk+' per hit · armour '+m.def),el('p','m','Perks: '+(ptxt(m.perks)||'none')));
+ [['weapon','🗡️ Weapon','weapon'],['armor','🛡️ Armour','armor'],['acc','💍 Accessory','acc'],['potion','🧪 Potion','use']].forEach(([k,l,kind])=>{const r=el('div','row');r.append(el('b','grow',l));const sel=el('select');sel.append(new Option('— none —',''));for(const[id,q]of Object.entries(S.inv)){const i=S.items[id];if(i.slot===kind&&ok(i))sel.append(new Option(i.n+' ('+(kind==='use'?'×'+q+', ':'')+st(i)+')',id))}sel.value=m[k]||'';sel.onchange=()=>act('slot',{slot:k,item:sel.value||null});r.append(sel);c.append(r)});
+ const lab=el('label'),cb=el('input');cb.type='checkbox';cb.checked=!!m.auto;cb.onchange=()=>act('auto',{on:cb.checked});lab.append(cb,' Auto-drink my potion when HP falls below 30%');c.append(lab);
+ const t=el('div','card'),nx=[10,20,40,60].find(x=>x>m.level)||60+20*(Math.floor((m.level-60)/20)+1);
+ t.append(el('h3',0,'🌳 Job tree'),el('p','m','Job points: '+m.free+' · next at level '+nx+'. Each point unlocks one job whose parent job you already have.'));
+ const node=(id,d)=>{const j=J[id],has=m.jobs.includes(id),r=el('div','row');r.style.marginLeft=d*18+'px';r.append(el('span','grow',j.e+' '+j.n+' · '+j.d+' dmg'+(S.jobPerks[id]?' · '+ptxt(S.jobPerks[id]):'')+(id==='adventurer'?' · can use any stage 3 weapon':'')+(ch(id).length===5?' · keeps the '+J[j.p].n+' perk':'')+(m.job===id?' ✅ active':'')));
+  if(has&&m.job!==id){const b=el('button','alt','Make active');b.onclick=()=>act('job',{job:id});r.append(b)}
+  else if(!has&&m.jobs.includes(j.p)){const b=el('button',0,'Unlock');b.disabled=m.free<1;b.onclick=()=>confirm('Unlock '+j.n+'?')&&act('unlock',{job:id});r.append(b)}
+  else if(!has)r.classList.add('m');t.append(r);Object.keys(J).filter(k=>J[k].p===id).forEach(k=>node(k,d+1))};
+ node('villager',0);const back=el('button','alt','← Back to village');back.onclick=village;app.append(c,t,back)}
+const wait=ms=>new Promise(r=>setTimeout(r,ms)),drain=()=>q0;
+const fam=()=>{const c=[];for(let y=S.me.job;y;y=S.jobTree[y]&&S.jobTree[y].p)c.push(y);return c};
+const fx=(e,f,o)=>motion&&e&&e.isConnected?e.animate(f,o):null;
+const lunge=(e,dir)=>fx(e,[{transform:'translateX(0)'},{transform:'translateX('+dir*U.arena.clientWidth*.45+'px)'},{transform:'translateX(0)'}],{duration:420,easing:'ease-in-out'});
+const hurt=e=>fx(e,[{filter:'none',transform:'translateX(0)'},{filter:'brightness(3)',transform:'translateX(7px)'},{filter:'none',transform:'translateX(-5px)'},{transform:'translateX(0)'}],{duration:280});
+function numPop(t,c,side){const s=el('div','dmg '+c,t);s.style.left=side==='m'?'68%':'16%';U.arena.append(s);s.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-64px)',opacity:0}],{duration:950,easing:'ease-out'}).onfinish=()=>s.remove()}
+function shoot(ch){if(!motion)return;const s=el('div','proj',ch),w=U.arena.clientWidth;U.arena.append(s);s.animate([{left:.22*w+'px'},{left:.7*w+'px'}],{duration:320,easing:'linear'}).onfinish=()=>s.remove()}
+function setBars(mh,ph){const f=S.fight,m=S.me;if(!f||!U.mb)return;U.mt.textContent='HP '+Math.max(0,mh)+'/'+f.mobMax;const a=Math.max(0,mh/f.mobMax*100),b=Math.max(0,ph/m.maxHp*100);U.mb.firstChild.style.width=U.mb.lastChild.style.width=a+'%';U.pt.textContent=m.name+' HP '+Math.max(0,ph)+'/'+m.maxHp+(m.auto?' · auto-potion on':'');U.pb.firstChild.style.width=U.pb.lastChild.style.width=b+'%';U.pb.classList.toggle('low',ph<m.maxHp*.3)}
+async function anim(e){if(!U.ps||!U.ps.isConnected)return;const rng=S.fight&&S.fight.ranged||(!S.fight&&S.me&&fam().some(k=>['archer','acolyte'].includes(k))),ch=fam().includes('archer')?'➶':'✨';
+ if(e.who==='p'||e.who==='b'){rng?shoot(ch):lunge(U.ps,1);await wait(rng?330:200);hurt(U.ms);numPop('-'+e.d+(e.x?'!':''),e.who==='b'?'bonus':'pd','m');setBars(e.mh,e.ph);if(e.mh<=0)fx(U.ms,[{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(24px)'}],{duration:650,fill:'forwards'});await wait(450)}
+ else if(e.who==='m'){lunge(U.ms,-1);await wait(200);if(e.d){hurt(U.ps);numPop('-'+e.d,'md','p')}else numPop('Delayed!','md','p');setBars(e.mh,e.ph);if(e.ph<=0)fx(U.ps,[{opacity:1},{opacity:0}],{duration:650,fill:'forwards'});await wait(450)}
+ else{numPop('+'+e.d,'heal','p');setBars(e.mh,e.ph);await wait(300)}}
+function queue(r){const ev=(r.events||[]).slice();if(r.bonus!=null)ev.push({who:'b',d:r.bonus,x:r.crit?1:0,mh:r.fight?r.fight.mobHp:0,ph:r.me.hp});for(const e of ev){pend++;q0=q0.then(()=>anim(e)).catch(()=>{}).then(()=>{pend--;if(!pend)paint()})}}
+function fight(){scr=village;U={};app.replaceChildren();const c=el('div','card');
+ U.n=el('h2');U.arena=el('div','arena');U.ps=el('div','spr',S.jobTree[S.me.job].e);U.ms=el('div','spr');U.ps.style.left='8%';U.ms.style.right='8%';U.arena.append(U.ps,U.ms);
+ U.mt=el('div','m');U.mb=bar('',0);U.pt=el('div','m');U.pb=bar('',0);U.tb=bar('t',0);U.tm=bar('t',0);
+ const mo=el('label','m'),cb=el('input');cb.type='checkbox';cb.checked=!motion;cb.onchange=()=>{motion=!cb.checked};mo.append(cb,' Reduce motion');
+ c.append(U.n,U.arena,U.mt,U.mb,el('p'),U.pt,U.pb,el('div','m','Your next strike'),U.tb,el('div','m','Monster’s next strike'),U.tm,mo);
+ U.q=el('div','card');const row=el('div','row');U.pot=el('button','alt');U.pot.onclick=drink;const fl=el('button','alt','🏃 Flee to village');fl.onclick=()=>act('leave');row.append(U.pot,fl);app.append(c,U.q,row);paint();drawQ()}
+function paint(){const f=S.fight,m=S.me;if(!f||!U.n||pend)return;U.n.textContent=f.name+' (Lv '+f.level+') · Floor '+f.floor+(f.need&&f.kills<f.need?' · monster '+(f.kills+1)+' of '+f.need:'')+(f.rage?' · 😡 ENRAGED':'');U.ms.textContent=f.e;setBars(f.mobHp,m.hp);const it=S.items[m.potion],qn=S.inv[m.potion]||0;U.pot.textContent=it?it.e+' Drink '+it.n+' (×'+qn+')':'No potion equipped';U.pot.disabled=!it||!qn}
+async function drink(){try{const b=S.me.hp;S=await api('/api/game/use','POST',{item:S.me.potion});setDl();queue(S);if(S.fight){numPop('+'+(S.me.hp-b),'heal','p');paint()}else{await drain();go()}}catch(e){}}
+function drawQ(){const q=S.fight.q;U.q.replaceChildren();if(!q){U.q.append(el('p','badc','No questions available.'));return}U.q.append(el('p','m','Answer correctly for a ×3 bonus strike: '+3*S.me.atk+' damage!'));(q.mode===1?m1:q.mode===2?m2:m3)(q)}
+async function submit(body){busy=true;try{const r=await api('/api/game/answer','POST',body);S=r;setDl();queue(r);if(!r.answer){await drain();go();return null}return r}finally{busy=false}}
+function fin(r,box){paint();box.append(el('p',r.answer.correct?'good':'badc',r.answer.correct?'✅ Correct! Bonus strike for '+r.bonus+' damage!':'❌ Not this time.'));const b=el('button',0,'Continue');b.onclick=()=>S.fight?drawQ():go();box.append(b)}
+function m1(q){let t=1;const ta=el('textarea');ta.rows=3;const fb=el('div'),go_=el('button',0,'Strike!'),sk=el('button','alt','Show answer');
+ U.q.append(el('p',0,'Rewrite with correct dialogue punctuation:'),el('blockquote',0,q.p.prompt),ta,fb,go_,' ',sk);
+ const send=async g=>{go_.disabled=sk.disabled=true;try{const r=await submit({qid:q.id,tryNo:t,answer:ta.value,giveUp:g});if(!r)return;const a=r.answer;
+  if(r.done){ta.disabled=true;fb.replaceChildren(el('p','m','Model answer: '+(a.reveal||'')));fin(r,fb)}
+  else{t++;paint();fb.replaceChildren(el('p','badc','Not quite — try '+t+' of 3.'),...(a.errors||[]).map(e=>el('div','m','• '+e.what+' '+(e.fix||''))));go_.disabled=sk.disabled=false}}catch(e){fb.textContent=e.message;go_.disabled=sk.disabled=false}};
+ go_.onclick=()=>send(false);sk.onclick=()=>send(true)}
+function m2(q){const p=q.p,sel=new Set(),toks=[],ins=new Map();let ph=1;const flow=el('div','flow'),fb=el('div'),btn=el('button',0,'Check my spots');
+ const mk=(k,i)=>{const key=k+i,s=el('span','tok '+k,k==='g'?(p.gaps[i].raw.replace(/ /g,'\u00a0')||'\u200b'):p.words[i]);s.onclick=()=>{if(ph===1){sel.has(key)?sel.delete(key):sel.add(key);s.classList.toggle('sel')}};toks.push({key,k,i,s});flow.append(s)};
+ for(let k=0;k<=p.words.length;k++){mk('g',k);if(k<p.words.length)mk('w',k)}
+ U.q.append(el('p',0,'Tap every word or gap with a mistake ('+p.places+' to find), then fix them.'),flow,fb,btn);
+ btn.onclick=async()=>{btn.disabled=true;try{
+  if(ph===1){const r=await submit({qid:q.id,phase:1,clicked:[...sel]});if(!r)return;const a=r.answer,keys=new Set(a.slots.map(s=>s.key));ph=2;fb.textContent='You found '+a.hits+' of '+a.total+'. Now type the fix in each box.';
+   for(const t of toks)if(keys.has(t.key)){const inp=el('input','fix');inp.value=t.k==='g'?p.gaps[t.i].raw.replace(/\s+/g,''):p.words[t.i];ins.set(t.key,inp);t.s.replaceWith(inp)}btn.textContent='Check my fixes';btn.disabled=false}
+  else{const fixes={};for(const[k,v]of ins)fixes[k]=v.value;const r=await submit({qid:q.id,phase:2,clicked:[...sel],fixes});if(!r)return;const a=r.answer;btn.remove();
+   fb.replaceChildren(el('p','m','Correct version: '+a.correctText),...a.slots.map(s=>el('div',s.fixed?'good':'badc',(s.fixed?'✓ ':'✗ ')+s.summary)));fin(r,fb)}
+ }catch(e){fb.textContent=e.message;btn.disabled=false}}}
+function m3(q){const p=q.p;let t=1;const inp=el('input');inp.maxLength=24;inp.placeholder='your verb';inp.autocomplete='off';inp.style.width='9em';
+ const fb=el('div'),go_=el('button',0,'Strike!'),hb=el('button','alt','Give me a hint'),hint=el('p','m','Think about how '+p.speaker+' sounds: '+p.hint.join(' or ')+'.'),bub=el('blockquote');hint.hidden=true;
+ bub.append((p.context?p.context+' ':'')+'“'+p.line+'” ',inp,' '+p.speaker+'.');
+ U.q.append(el('p',0,'Replace “said” with a saying verb that shows how '+p.speaker+' feels.'),bub,hint,go_,' ',hb,fb);hb.onclick=()=>{hint.hidden=false;hb.hidden=true};
+ const send=async()=>{const w=inp.value.trim();if(!w)return inp.focus();go_.disabled=true;try{const r=await submit({qid:q.id,answer:w,tryNo:t});if(!r)return;const a=r.answer;
+  if(r.done){inp.disabled=true;go_.hidden=hb.hidden=true;fb.replaceChildren(el('p','m',a.correct?(a.message||''):'Some verbs that would work: '+(a.more||[]).join(', ')));fin(r,fb)}
+  else{t++;paint();hint.hidden=false;hb.hidden=true;fb.replaceChildren(el('p','badc',a.message||'Try another verb.'),el('p','m','Try '+t+' of 3.'));go_.disabled=false;inp.select()}}catch(e){fb.textContent=e.message;go_.disabled=false}};
+ go_.onclick=send;inp.onkeydown=e=>{if(e.key==='Enter')send()}}
+function end(){scr=village;const e=S.ended,m=S.me;app.replaceChildren();const c=el('div','card');
+ if(e.result==='win'){c.append(el('h2','good popin','🎉 Victory!'),el('p',0,'+'+e.gold+' gold in your pack · +'+e.xp+' XP'+(e.levelUps?' · ⬆️ Level '+m.level+'!':'')));
+  (e.drops||[]).forEach(d=>{const i=S.items[d.id];c.append(el('p','popin','🎁 Loot: '+i.e+' '+i.n+(d.dup?' (you had one, so it sold for '+d.dup+' gold)':'')))});
+  if(e.stairs)c.append(el('p','good','🪜 Floor cleared! You found the stairs down.'));
+  if(m.free&&e.levelUps)c.append(el('p','good','You have a job point to spend in your profile!'));
+  const nf=e.stairs&&e.floor<S.floors.total?e.floor+1:e.floor,a=el('button',0,nf>e.floor?'🪜 Take the stairs down':'⚔️ Fight on'),b=el('button','alt','🏘️ Return to village & bank gold');a.onclick=()=>act('start',{floor:nf});b.onclick=()=>act('leave');c.append(a,' ',b)}
+ else{c.append(el('h2','badc','💀 Defeated'),el('p',0,'You lost '+e.lost+' gold from your pack and woke up in the village.'));const b=el('button',0,'Back to village');b.onclick=()=>{S.ended=null;village()};c.append(b)}
+ if(e.potions)c.append(el('p','m','🧪 Potions auto-drunk: '+e.potions));app.append(c)}
+setInterval(async()=>{if(busy||!S||!S.fight||!U.tb||!U.tb.isConnected)return;const now=performance.now(),f=S.fight;U.tb.firstChild.style.width=Math.max(0,Math.min(100,(dlP-now)/f.ip*100))+'%';U.tm.firstChild.style.width=Math.max(0,Math.min(100,(dlM-now)/f.im*100))+'%';
+ if(Math.min(dlP,dlM)-now<-150){busy=true;try{S=await api('/api/game/sync','POST',{});setDl();queue(S);if(!S.fight){await drain();go()}}catch(e){}busy=false}},200);
+token?boot():login();
+</script></body></html>
