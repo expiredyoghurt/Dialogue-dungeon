@@ -152,6 +152,16 @@ export const DEFAULT_CFG = {
   // combat timing: seconds between normal attacks; the monster's first attack comes `offset` s earlier; ranged classes strike first after `ranged` s;
   // cap = largest attack-speed bonus (1 = +100%); monster = the monsters' own attack-speed bonus
   speed: { turn: 15, offset: 1, ranged: 5, cap: 1, monster: 0 },
+  // Monsters respawn: when on, fleeing to the village, returning to it between fights, or being defeated wipes the kill count of any floor
+  // that is not cleared yet, so the pupil must fight all of its monsters again. Off (default): kills on a floor are kept.
+  respawn: false,
+  // Answer strike: a correct answer deals (strike + the job's bonus-strike perk) x the pupil's attack. strike = N, default 3.
+  strike: 3,
+  // Correct answers needed in a fight before the monster can die (0 = basic attacks alone may finish it). Until then it is left on 1 HP.
+  must: { mob: 1, mid: 3, boss: 5 },
+  // Gentle start: while a pupil's level is below `levels` (0 = off) they earn gold x `gold` and XP x `xp`, monsters hit x `dmg` as hard,
+  // and mid-bosses / bosses have x `bossHp` of their usual HP. Aim: enough gold for starter gear and the Adventurer job (level 10).
+  start: { levels: 10, gold: 2.5, xp: 1.25, dmg: 0.6, bossHp: 0.7 },
   items: {}, // teacher overrides of item price / shop level / attack / defence / gold / xp / heal
   perks: {
     villager: { xp: 0.2 },
@@ -176,6 +186,10 @@ export const cfgFrom = (raw) => {
     Object.assign(c.speed, raw.speed || {});
     if (raw.mobs) c.mobs = raw.mobs;
     if (raw.floors && raw.floors.length) c.floors = raw.floors;
+    if (raw.respawn != null) c.respawn = !!raw.respawn;
+    if (Number.isFinite(Number(raw.strike)) && raw.strike !== null && raw.strike !== '') c.strike = Number(raw.strike);
+    if (raw.must) Object.assign(c.must, raw.must);
+    if (raw.start) Object.assign(c.start, raw.start);
   }
   for (const k of Object.keys(MOBS)) c.mobs[k] = c.mobs[k] || { drops: {} };
   return c;

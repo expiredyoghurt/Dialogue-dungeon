@@ -13,6 +13,24 @@ const needFor = (n, cfg) => {
   return b.min + rnd(b.max - b.min + 1);
 };
 const db = (env) => env.DB;
+// Respawn: wipes the kill count of every floor that is not cleared yet (the floor's monster count n<floor> is kept, so it can't be re-rolled).
+// Returns how many floors were reset.
+export function resetFloors(pl) {
+  const fk = JSON.parse(pl.floor_kills || '{}');
+  let n = 0;
+  for (const k of Object.keys(fk)) {
+    const m = /^n(\d+)$/.exec(k);
+    if (!m) continue;
+    const fl = m[1];
+    if ((fk[fl] || 0) > 0 && fk[fl] < fk[k]) { fk[fl] = 0; delete fk['m' + fl]; n++; }
+  }
+  if (n) pl.floor_kills = JSON.stringify(fk);
+  return n;
+}
+// Correct answers a fight needs before the monster may die: regular / mid-boss / boss (cfg.must, 0 = none).
+export const mustFor = (mob, cfg) => { const k = MOBS[mob] && MOBS[mob].kind; return (k === 'boss' ? cfg.must.boss : k === 'mid' ? cfg.must.mid : cfg.must.mob) || 0; };
+// Gentle start applies while the pupil is below the configured level.
+export const gentle = (pl, cfg) => !!(cfg.start && cfg.start.levels > 0 && pl.level < cfg.start.levels);
 
 async function getPlayer(env, p) {
   await db(env).prepare('INSERT OR IGNORE INTO g_player (pupil_id) VALUES (?1)').bind(p.id).run();
@@ -62,6 +80,11 @@ export async function configSave(request, env) {
   const B = DEFAULT_CFG.boss;
   out.boss = { midHp: n(b.boss?.midHp, 1, 100, B.midHp), midDmg: n(b.boss?.midDmg, 0, 20, B.midDmg), bossHp: n(b.boss?.bossHp, 1, 100, B.bossHp), bossDmg: n(b.boss?.bossDmg, 0, 20, B.bossDmg), rageDmg: n(b.boss?.rageDmg, 0, 20, B.rageDmg), lo: n(b.boss?.lo, 0, 10, B.lo), hi: n(b.boss?.hi, 0, 10, B.hi) };
   out.boss.hi = Math.max(out.boss.hi, out.boss.lo);
+  out.respawn = !!b.respawn;
+  out.strike = n(b.strike, 0, 50, DEFAULT_CFG.strike);
+  out.must = { mob: Math.round(n(b.must?.mob, 0, 50, DEFAULT_CFG.must.mob)), mid: Math.round(n(b.must?.mid, 0, 50, DEFAULT_CFG.must.mid)), boss: Math.round(n(b.must?.boss, 0, 50, DEFAULT_CFG.must.boss)) };
+  const S1 = DEFAULT_CFG.start;
+  out.start = { levels: Math.round(n(b.start?.levels, 0, 100, S1.levels)), gold: n(b.start?.gold, 0, 100, S1.gold), xp: n(b.start?.xp, 0, 100, S1.xp), dmg: n(b.start?.dmg, 0, 10, S1.dmg), bossHp: n(b.start?.bossHp, 0.05, 10, S1.bossHp) };
   out.shopCost = [0, 1, 2].map((i) => Math.round(n(b.shopCost && b.shopCost[i], 0, 1e7, DEFAULT_CFG.shopCost[i])));
   const S0 = DEFAULT_CFG.speed, turn = n(b.speed?.turn, 2, 120, S0.turn);
   out.speed = { turn, offset: n(b.speed?.offset, 0, turn - 1, S0.offset), ranged: n(b.speed?.ranged, 0, 60, S0.ranged), cap: n(b.speed?.cap, 0, 5, S0.cap), monster: n(b.speed?.monster, -0.5, 5, S0.monster) };
@@ -136,6 +159,7 @@ export function sim(pl, f, cfg, pot, now) {
       let d = 1 + rnd(pmax), x = 0; // a random 1 to the pupil's maximum
       if (g.P.dbl && Math.random() < g.P.dbl) { d *= 2; x = 1; } // assassin: double damage on regular attacks
       f.mob_hp -= d;
+      if (f.mob_hp <= 0 && (JSON.parse(pl.floor_kills || '{}').ca || 0) < mustFor(f.mob, cfg)) f.mob_hp = 1; // not enough correct answers yet: it survives
       ev.push({ t, who, d, x, mh: Math.max(0, f.mob_hp), ph: pl.hp });
       if (f.mob_hp <= 0) return { res: 'win', ev };
       f.p_next += g.ip;
@@ -147,7 +171,7 @@ export function sim(pl, f, cfg, pot, now) {
         fk.sk--; // archer perk: the monster's first hit(s) in a fight are skipped
         pl.floor_kills = JSON.stringify(fk);
       } else {
-        const mmax = Math.ceil(f.level * cfg.def.dmg * mult);
+        const mmax = Math.ceil(f.level * cfg.def.dmg * mult * (gentle(pl, cfg) ? cfg.start.dmg : 1));
         const roll = kind ? Math.round(mmax * (b.lo + Math.random() * (b.hi - b.lo))) : 1 + rnd(Math.max(1, mmax));
         d = Math.max(1, roll - g.def);
         pl.hp -= d;
@@ -172,15 +196,17 @@ async function finish(env, p, pl, f, res) {
     const lost = pl.run_gold;
     pl.run_gold = 0;
     pl.hp = mhOf(pl, cfg);
+    const reset = cfg.respawn ? resetFloors(pl) : 0;
     await save(env, pl);
-    return { result: 'lose', lost, floor: f.floor };
+    return { result: 'lose', lost, floor: f.floor, reset: reset > 0 };
   }
   const g = gear(pl, cfg);
   const out = { result: 'win', floor: f.floor, levelUps: 0 };
   const mc = cfg.mobs[f.mob] || {}, d = { ...cfg.def, ...mc };
   const lo = d.goldMin * f.level, hi = Math.max(lo, d.goldMax * f.level);
-  out.gold = Math.max(1, Math.round((lo + Math.random() * (hi - lo)) * (1 + g.gold)));
-  out.xp = Math.round(d.xp * f.level * (1 + g.xp));
+  const gs = gentle(pl, cfg); // gentle start: bigger rewards while the pupil is still below the set level
+  out.gold = Math.max(1, Math.round((lo + Math.random() * (hi - lo)) * (1 + g.gold) * (gs ? cfg.start.gold : 1)));
+  out.xp = Math.round(d.xp * f.level * (1 + g.xp) * (gs ? cfg.start.xp : 1));
   pl.run_gold += out.gold;
   pl.xp += out.xp;
   pl.kills++;
@@ -265,21 +291,33 @@ async function view(env, p, extra = {}) {
       if (q) await db(env).prepare('UPDATE g_fight SET qid = ?2 WHERE pupil_id = ?1').bind(p.id, q.id).run();
     }
     const m = MOBS[f.mob] || MOBS.slime; // (fights saved before the monster change fall back to a slime)
-    fight = { name: m.n, e: m.e, img: m.img || null, level: f.level, mobHp: f.mob_hp, mobMax: f.mob_max, floor: f.floor, kind: m.kind || null, rage: m.kind === 'boss' && f.mob_hp < f.mob_max * 0.5, kills: fk[f.floor] || 0, need: fk['n' + f.floor], pNext: f.p_next, mNext: f.m_next, ip: g.ip, im: Math.round((cfg.speed.turn * 1000) / (1 + cfg.speed.monster)), ranged: RANGED.has(pl.job), now: Date.now(), q };
+    fight = { name: m.n, e: m.e, img: m.img || null, level: f.level, mobHp: f.mob_hp, mobMax: f.mob_max, floor: f.floor, kind: m.kind || null, rage: m.kind === 'boss' && f.mob_hp < f.mob_max * 0.5, kills: fk[f.floor] || 0, need: fk['n' + f.floor], ca: fk.ca || 0, ansNeed: mustFor(f.mob, cfg), pNext: f.p_next, mNext: f.m_next, ip: g.ip, im: Math.round((cfg.speed.turn * 1000) / (1 + cfg.speed.monster)), ranged: RANGED.has(pl.job), now: Date.now(), q };
   }
   return json({
-    me: { name: p.name, level: pl.level, xp: pl.xp, need: need(pl.level), hp: pl.hp, maxHp: mhOf(pl, cfg), gold: pl.gold, runGold: pl.run_gold, weapon: pl.weapon, armor: pl.armor, acc: pl.acc, kills: pl.kills, atk: g.atk, def: g.def, job: pl.job, jobs: JSON.parse(pl.jobs), free: points(pl.level) - (JSON.parse(pl.jobs).length - 1), potion: pl.potion, auto: pl.auto, base: JOBS[pl.job].d, perks: g.P, stage: shopLv(pl), stageMax: stageOf(JSON.parse(pl.jobs)) },
+    me: { name: p.name, level: pl.level, xp: pl.xp, need: need(pl.level), hp: pl.hp, maxHp: mhOf(pl, cfg), gold: pl.gold, runGold: pl.run_gold, weapon: pl.weapon, armor: pl.armor, acc: pl.acc, kills: pl.kills, atk: g.atk, strikeN: cfg.strike + (g.P.mult || 0), bonus: Math.round((cfg.strike + (g.P.mult || 0)) * g.atk), def: g.def, job: pl.job, jobs: JSON.parse(pl.jobs), free: points(pl.level) - (JSON.parse(pl.jobs).length - 1), potion: pl.potion, auto: pl.auto, base: JOBS[pl.job].d, perks: g.P, gentle: gentle(pl, cfg) ? { gold: cfg.start.gold, xp: cfg.start.xp, until: cfg.start.levels } : null, stage: shopLv(pl), stageMax: stageOf(JSON.parse(pl.jobs)) },
     inv: await inv(env, p.id),
-    floors: { max: top, kills: fk, total: TOP_FLOOR },
+    floors: { max: top, kills: fk, total: TOP_FLOOR, respawn: !!cfg.respawn },
     items: ITEMS,
-    jobTree: JOBS,
+    ...visibleJobs(JSON.parse(pl.jobs), cfg),
     perkDefs: PERKS,
-    jobPerks: cfg.perks,
     shop: shopFor(JSON.parse(pl.jobs), shopLv(pl)),
     shopCost: cfg.shopCost,
     fight,
     ...extra,
   });
+}
+
+// The job tree is revealed one step at a time: the pupil is only sent the jobs they already have plus the jobs they could unlock next
+// (children of a job they own). Everything else - names, descriptions, perks - stays on the server until it becomes available.
+export function visibleJobs(owned, cfg) {
+  const jobTree = {}, jobPerks = {};
+  for (const [id, j] of Object.entries(JOBS)) {
+    if (owned.includes(id) || owned.includes(j.p)) {
+      jobTree[id] = j;
+      if (cfg.perks[id]) jobPerks[id] = cfg.perks[id];
+    }
+  }
+  return { jobTree, jobPerks, moreJobs: Object.keys(jobTree).length < Object.keys(JOBS).length };
 }
 
 async function start(env, p, pl, f, body) {
@@ -297,7 +335,9 @@ async function start(env, p, pl, f, body) {
   const last = (fl.boss || fl.mid) && (fk[n] || 0) === fk['n' + n] - 1; // the last monster of every 5th (mid-boss) and 10th (boss) floor
   const mob = last ? fl.lead : pick(fl.mobs);
   const lv = last ? n : 1 + rnd(n);
-  const hp = Math.round(hpFor(lv, cfg) * ({ mid: cfg.boss.midHp, boss: cfg.boss.bossHp }[MOBS[mob].kind] || 1));
+  const kind = MOBS[mob].kind;
+  const hp = Math.max(1, Math.round(hpFor(lv, cfg) * ({ mid: cfg.boss.midHp, boss: cfg.boss.bossHp }[kind] || 1) * (kind && gentle(pl, cfg) ? cfg.start.bossHp : 1)));
+  fk.ca = 0; // correct answers so far this fight
   fk.fs = 0; // per-fight perk counters: first-strike used, monster hits left to skip
   fk.sk = perksOf(pl.job, cfg).skip || 0;
   pl.floor_kills = JSON.stringify(fk);
@@ -319,6 +359,7 @@ async function leave(env, p, pl, f) {
   pl.gold += pl.run_gold;
   pl.run_gold = 0;
   pl.hp = mhOf(pl, cfg);
+  if (cfg.respawn) resetFloors(pl); // monsters come back on any floor that wasn't cleared
   await save(env, pl);
 }
 
@@ -397,13 +438,15 @@ async function answer(request, env, p, pl, f, body, events) {
   const cfg = await getCfg(env);
   if (r.correct) {
     const g = gear(pl, cfg), P = g.P, fk = JSON.parse(pl.floor_kills || '{}');
-    let bonus = (3 + (P.mult || 0)) * g.atk * dmgMult(pl, f, P, cfg);
+    let bonus = (cfg.strike + (P.mult || 0)) * g.atk * dmgMult(pl, f, P, cfg);
     if (P.first && !fk.fs) bonus *= P.first; // first correct answer of the fight
     if (Math.random() < (P.crit || 0)) { bonus *= 2; extra.crit = 1; } // double strike
     fk.fs = 1;
+    fk.ca = (fk.ca || 0) + 1; // correct answers this fight
     pl.floor_kills = JSON.stringify(fk);
     extra.bonus = Math.round(bonus);
     f.mob_hp -= extra.bonus;
+    if (f.mob_hp <= 0 && fk.ca < mustFor(f.mob, cfg)) f.mob_hp = 1; // needs more correct answers before it can fall
     pl.hp = Math.min(mhOf(pl, cfg), pl.hp + Math.round(P.heal || 0));
     if (f.mob_hp <= 0) res = 'win';
   }
