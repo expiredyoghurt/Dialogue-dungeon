@@ -264,8 +264,8 @@ async function view(env, p, extra = {}) {
       q = await nextQuestion(env, p, f.qid, f.floor, pl);
       if (q) await db(env).prepare('UPDATE g_fight SET qid = ?2 WHERE pupil_id = ?1').bind(p.id, q.id).run();
     }
-    const m = MOBS[f.mob];
-    fight = { name: m.n, e: m.e, level: f.level, mobHp: f.mob_hp, mobMax: f.mob_max, floor: f.floor, kind: m.kind || null, rage: m.kind === 'boss' && f.mob_hp < f.mob_max * 0.5, kills: fk[f.floor] || 0, need: fk['n' + f.floor], pNext: f.p_next, mNext: f.m_next, ip: g.ip, im: Math.round((cfg.speed.turn * 1000) / (1 + cfg.speed.monster)), ranged: RANGED.has(pl.job), now: Date.now(), q };
+    const m = MOBS[f.mob] || MOBS.slime; // (fights saved before the monster change fall back to a slime)
+    fight = { name: m.n, e: m.e, img: m.img || null, level: f.level, mobHp: f.mob_hp, mobMax: f.mob_max, floor: f.floor, kind: m.kind || null, rage: m.kind === 'boss' && f.mob_hp < f.mob_max * 0.5, kills: fk[f.floor] || 0, need: fk['n' + f.floor], pNext: f.p_next, mNext: f.m_next, ip: g.ip, im: Math.round((cfg.speed.turn * 1000) / (1 + cfg.speed.monster)), ranged: RANGED.has(pl.job), now: Date.now(), q };
   }
   return json({
     me: { name: p.name, level: pl.level, xp: pl.xp, need: need(pl.level), hp: pl.hp, maxHp: mhOf(pl, cfg), gold: pl.gold, runGold: pl.run_gold, weapon: pl.weapon, armor: pl.armor, acc: pl.acc, kills: pl.kills, atk: g.atk, def: g.def, job: pl.job, jobs: JSON.parse(pl.jobs), free: points(pl.level) - (JSON.parse(pl.jobs).length - 1), potion: pl.potion, auto: pl.auto, base: JOBS[pl.job].d, perks: g.P, stage: shopLv(pl), stageMax: stageOf(JSON.parse(pl.jobs)) },
@@ -295,7 +295,7 @@ async function start(env, p, pl, f, body) {
     await save(env, pl);
   }
   const last = (fl.boss || fl.mid) && (fk[n] || 0) === fk['n' + n] - 1; // the last monster of every 5th (mid-boss) and 10th (boss) floor
-  const mob = last ? (fl.boss ? 'knight' : 'ogre') : pick(fl.mobs);
+  const mob = last ? fl.lead : pick(fl.mobs);
   const lv = last ? n : 1 + rnd(n);
   const hp = Math.round(hpFor(lv, cfg) * ({ mid: cfg.boss.midHp, boss: cfg.boss.bossHp }[MOBS[mob].kind] || 1));
   fk.fs = 0; // per-fight perk counters: first-strike used, monster hits left to skip

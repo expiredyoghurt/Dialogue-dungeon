@@ -522,7 +522,7 @@
     const mobs = Object.entries(d.mobs).map(([id, m]) => {
       const mc = c.mobs[id] || {}, ov = ['goldMin', 'goldMax', 'xp'].map((k) => num(mc[k], 4));
       const di = ik.map((k) => num(mc.drops && mc.drops[k] != null ? +(mc.drops[k] * 100).toFixed(2) : '', 4));
-      return { id, ov, di, tr: h('tr', null, h('td', null, m.e + ' ' + m.n), ...ov.map((i) => h('td', null, i)), ...di.map((i) => h('td', null, i))) };
+      return { id, ov, di, tr: h('tr', null, h('td', null, m.img ? h('img', { src: '/m/' + m.img + '.png', height: 28, alt: '' }) : m.e, ' ' + m.n), ...ov.map((i) => h('td', null, i)), ...di.map((i) => h('td', null, i))) };
     });
     const save = guard(async () => {
       const body = { hp: { base: val(base), tiers: [...tiers.children].map((r) => r._get()) }, def: { goldMin: val(g1), goldMax: val(g2), xp: val(xp), dmg: val(dm) }, floors: [...bands.children].map((r) => r._get()), boss: Object.fromEntries(bk.map((k, i) => [k, val(bs[i])])), speed: { turn: val(sp[0]), offset: val(sp[1]), ranged: val(sp[2]), cap: val(sp[3]) / 100, monster: val(sp[4]) / 100 }, shopCost: sc.map(val), items: Object.fromEntries(itemRows.map((r) => [r.id, Object.fromEntries(fields.map(([k, pct], i) => [k, r.ins[i] ? val(r.ins[i]) / (pct ? 100 : 1) : undefined]).filter(([, v]) => v != null && !Number.isNaN(v)))])), perks: Object.fromEntries(pj.map((r) => [r.id, Object.fromEntries(pd.map(([k, , pct], i) => [k, val(r.ins[i]) / (pct ? 100 : 1)]).filter(([, v]) => v > 0))])), mobs: {} };

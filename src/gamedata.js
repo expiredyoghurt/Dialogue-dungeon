@@ -54,14 +54,55 @@ export const BASE = JSON.parse(JSON.stringify(ITEMS));
 export function applyItems(cfg) {
   for (const id of Object.keys(BASE)) ITEMS[id] = { ...BASE[id], ...((cfg.items && cfg.items[id]) || {}) };
 }
+// Monster art: public/m/<img>.png (16-bit pixel sprites). Regular monsters are drawn from the floor bands below; dragon is the mid-boss, knight the boss.
 export const MOBS = {
-  rat: { n: 'Cellar Rat', e: '🐀' },
-  slime: { n: 'Green Slime', e: '🟢' },
-  bat: { n: 'Cave Bat', e: '🦇' },
-  goblin: { n: 'Goblin Thief', e: '👺' },
-  skeleton: { n: 'Skeleton Guard', e: '💀' },
-  ogre: { n: 'Stone Ogre (Mid-boss)', e: '👹', kind: 'mid' },
-  knight: { n: 'Dread Knight (Boss)', e: '🧛', kind: 'boss' },
+  slime: { n: 'Green Slime', img: 'slime', e: '👾' },
+  bat: { n: 'Cave Bat', img: 'bat', e: '👾' },
+  skeleton: { n: 'Skeleton Guard', img: 'skeleton', e: '👾' },
+  spider: { n: 'Giant Spider', img: 'spider', e: '👾' },
+  goblin: { n: 'Goblin Raider', img: 'goblin', e: '👾' },
+  goblinscout: { n: 'Goblin Scout', img: 'goblinscout', e: '👾' },
+  eye: { n: 'Floating Eye', img: 'eye', e: '👾' },
+  golem: { n: 'Stone Golem', img: 'golem', e: '👾' },
+  hydra: { n: 'Baby Hydra', img: 'hydra', e: '👾' },
+  mimic: { n: 'Mimic Chest', img: 'mimic', e: '👾' },
+  ghost: { n: 'Ghost', img: 'ghost', e: '👾' },
+  wraith: { n: 'Hooded Wraith', img: 'wraith', e: '👾' },
+  imp: { n: 'Fire Imp', img: 'imp', e: '👾' },
+  snail: { n: 'Giant Snail', img: 'snail', e: '👾' },
+  darkelf: { n: 'Dark Elf Archer', img: 'darkelf', e: '👾' },
+  minotaur: { n: 'Minotaur', img: 'minotaur', e: '👾' },
+  cerberus: { n: 'Three-headed Hound', img: 'cerberus', e: '👾' },
+  orc: { n: 'Orc Brute', img: 'orc', e: '👾' },
+  lizard: { n: 'Lizardman Spearman', img: 'lizard', e: '👾' },
+  shade: { n: 'Shade', img: 'shade', e: '👾' },
+  ooze: { n: 'Flesh Ooze', img: 'ooze', e: '👾' },
+  hippo: { n: 'Pink Hippo', img: 'hippo', e: '👾' },
+  troll: { n: 'Rock Troll', img: 'troll', e: '👾' },
+  manticore: { n: 'Manticore', img: 'manticore', e: '👾' },
+  darkmage: { n: 'Dark Mage', img: 'darkmage', e: '👾' },
+  wisp: { n: 'Blue Wisp', img: 'wisp', e: '👾' },
+  centipede: { n: 'Giant Centipede', img: 'centipede', e: '👾' },
+  mushroom: { n: 'Mushroom Folk', img: 'mushroom', e: '👾' },
+  skull: { n: 'Floating Skull', img: 'skull', e: '👾' },
+  squid: { n: 'Cave Squid', img: 'squid', e: '👾' },
+  armor: { n: 'Animated Armour', img: 'armor', e: '👾' },
+  mole: { n: 'Cave Mole', img: 'mole', e: '👾' },
+  dragon: { n: 'Green Dragon (Mid-boss)', img: 'dragon', e: '🐉', kind: 'mid' },
+  knight: { n: 'Dread Knight (Mid-boss)', img: 'knight', e: '🧛', kind: 'mid' },
+  monarch: { n: 'Mimic Monarch (Mid-boss)', img: 'monarch', e: '📦', kind: 'mid' },
+  cyclops: { n: 'Cyclops Brawler (Mid-boss)', img: 'cyclops', e: '👁️', kind: 'mid' },
+  shadowbeast: { n: 'Shadowbeast Stalker (Mid-boss)', img: 'shadowbeast', e: '🐈‍⬛', kind: 'mid' },
+  warlord: { n: 'Draconic Warlord (Mid-boss)', img: 'warlord', e: '🐲', kind: 'mid' },
+  matriarch: { n: 'Hydra Matriarch (Mid-boss)', img: 'matriarch', e: '🐍', kind: 'mid' },
+  wyvern: { n: 'Skeletal Wyvern Trainer (Mid-boss)', img: 'wyvern', e: '💀', kind: 'mid' },
+  lichacolyte: { n: 'Lich Acolyte (Mid-boss)', img: 'lichacolyte', e: '🧙', kind: 'mid' },
+  paladin: { n: 'Corrupt Paladin (Mid-boss)', img: 'paladin', e: '🛡️', kind: 'mid' },
+  emperor: { n: 'Mimic Emperor (Boss)', img: 'emperor', e: '📦', kind: 'boss' },
+  hydraqueen: { n: 'Hydra Queen (Boss)', img: 'hydraqueen', e: '🐍', kind: 'boss' },
+  overlord: { n: 'Dread Overlord (Boss)', img: 'overlord', e: '😈', kind: 'boss' },
+  voidboss: { n: 'Void Elemental (Boss)', img: 'voidboss', e: '🌀', kind: 'boss' },
+  lichking: { n: 'Lich King (Boss)', img: 'lichking', e: '👑', kind: 'boss' },
 };
 
 // Jobs: d = base damage, p = parent job. (Acolyte is the "apprentice mage" step.) Numbers are first-pass; tune freely.
@@ -121,15 +162,7 @@ export const DEFAULT_CFG = {
     acolyte: { potion: 0.25 }, mage: { mult: 0.5 }, battlemage: { mult: 0.5 }, elementalmage: { crit: 0.2 },
     cleric: { heal: 1 }, priest: { heal: 2, potion: 0.5 }, paladin: { dr: 2 },
   },
-  mobs: {
-    rat: { drops: { potion: 0.1, dagger: 0.05 } },
-    slime: { drops: { potion: 0.1, vest: 0.05 } },
-    bat: { drops: { club: 0.05, coin: 0.03 } },
-    goblin: { drops: { charm: 0.05, sword: 0.03, mail: 0.03 } },
-    skeleton: { drops: { ring: 0.04, blade: 0.03, bigpotion: 0.08 } },
-    ogre: { drops: { sword: 0.1, mail: 0.1, ring: 0.08, bigpotion: 0.1 } },
-    knight: { drops: { plate: 0.1, blade: 0.1, mail: 0.1, bigpotion: 0.1 } },
-  },
+  mobs: {}, // filled in below from the floor bands
 };
 export const cfgFrom = (raw) => {
   const c = JSON.parse(JSON.stringify(DEFAULT_CFG));
@@ -154,11 +187,36 @@ export function hpFor(lv, cfg) {
   return h;
 }
 // 100 floors; monsters on floor N are level 1..N; every 5th floor ends with a mid-boss and every 10th with a boss (both level N).
-const BANDS = [[10, 'Cellar', ['rat', 'slime']], [25, 'Tunnels', ['slime', 'bat']], [45, 'Goblin Warren', ['bat', 'goblin']], [70, 'Bone Halls', ['goblin', 'skeleton']], [100, 'Dread Keep', ['skeleton']]];
+// Which mid-boss / boss waits at the end of each 5th / 10th floor (floors 5, 15, ... 95 and 10, 20, ... 100); the bosses repeat, tougher each time as floor level rises.
+const MIDS = ['monarch', 'cyclops', 'dragon', 'shadowbeast', 'warlord', 'matriarch', 'wyvern', 'lichacolyte', 'paladin', 'knight'];
+const BOSSES = ['emperor', 'hydraqueen', 'overlord', 'voidboss', 'lichking'];
+const BANDS = [
+  [10, 'Cellar', ['slime', 'mole', 'snail', 'mushroom', 'bat', 'hippo']],
+  [25, 'Tunnels', ['spider', 'centipede', 'ooze', 'squid', 'goblinscout', 'wisp', 'bat', 'slime']],
+  [45, 'Goblin Warren', ['goblin', 'goblinscout', 'imp', 'lizard', 'orc', 'darkelf', 'mimic', 'eye']],
+  [70, 'Bone Halls', ['skeleton', 'ghost', 'wraith', 'skull', 'shade', 'darkmage', 'wisp', 'cerberus']],
+  [100, 'Dread Keep', ['minotaur', 'troll', 'golem', 'armor', 'hydra', 'manticore', 'cerberus', 'eye']],
+];
+// starting drop rates per floor band (teachers change them per monster on the Game balance tab)
+const BAND_DROPS = [
+  { minor: 0.1, potion: 0.05, stick: 0.05, tunic: 0.05 },
+  { potion: 0.1, dagger: 0.05, vest: 0.05, locket: 0.04, club: 0.03 },
+  { potion: 0.08, bigpotion: 0.06, club: 0.05, studded: 0.04, coin: 0.03, handaxe: 0.03, swiftring: 0.03 },
+  { bigpotion: 0.08, greater: 0.05, sword: 0.04, mail: 0.04, ring: 0.03, charm: 0.03 },
+  { greater: 0.08, blade: 0.04, plate: 0.04, band: 0.03, amulet: 0.03, signet: 0.03 },
+];
+BANDS.forEach(([, , ids], i) => ids.forEach((id) => { if (!DEFAULT_CFG.mobs[id]) DEFAULT_CFG.mobs[id] = { drops: BAND_DROPS[i] }; }));
+const MID_DROPS = [
+  { bigpotion: 0.1, sword: 0.08, mail: 0.08, coin: 0.06 },
+  { greater: 0.1, blade: 0.08, plate: 0.08, ring: 0.06, swiftring: 0.06 },
+  { greater: 0.1, elixir: 0.08, plate: 0.08, signet: 0.08, amulet: 0.08, band: 0.06 },
+];
+MIDS.forEach((id, i) => { DEFAULT_CFG.mobs[id] = { drops: MID_DROPS[i < 2 ? 0 : i < 5 ? 1 : 2] }; });
+BOSSES.forEach((id) => { DEFAULT_CFG.mobs[id] = { drops: { elixir: 0.1, phoenix: 0.08, pendant: 0.05, crown: 0.04, scrown: 0.04, zephyr: 0.05, waraxe: 0.05, longbow: 0.05, arcstaff: 0.05, fullplate: 0.05 } }; });
 export function floorInfo(n) {
   const b = BANDS.find((x) => n <= x[0]);
   const boss = n % 10 === 0, mid = n % 5 === 0 && !boss;
-  return { n: `${b[1]} · Floor ${n}`, mobs: b[2], lv: [1, n], boss, mid };
+  return { n: `${b[1]} · Floor ${n}`, mobs: b[2], lv: [1, n], boss, mid, lead: boss ? BOSSES[(n / 10 - 1) % BOSSES.length] : mid ? MIDS[(n - 5) / 10] : null };
 }
 
 // Shop level follows the deepest job the pupil has unlocked: villager 1, adventurer 2, branch / middle classes 3, top-tier classes 4.
