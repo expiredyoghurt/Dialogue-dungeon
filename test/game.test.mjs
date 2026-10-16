@@ -95,3 +95,10 @@ test('the job tree is revealed one step at a time', async () => {
   assert.equal(visibleJobs(['villager'], cfg).moreJobs, true);
   assert.equal(visibleJobs(Object.keys(JOBS), cfg).moreJobs, false);
 });
+
+test('xpMode defaults to level and only accepts "damage" as the alternative', () => {
+  assert.equal(DEFAULT_CFG.xpMode, 'level');
+  assert.equal(cfgFrom(null).xpMode, 'level');
+  assert.equal(cfgFrom({ xpMode: 'bogus' }).xpMode, 'level');
+  assert.equal(cfgFrom({ xpMode: 'damage' }).xpMode, 'damage');
+});
