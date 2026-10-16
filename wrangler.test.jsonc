@@ -16,6 +16,10 @@
     { "binding": "DB", "database_name": "dialogue-dungeon", "database_id": "00000000-0000-0000-0000-000000000000" }
   ],
 
+  // Dungeon Dive (co-op parties): one Durable Object per party. The class is exported from src/index.js.
+  "durable_objects": { "bindings": [{ "name": "DIVE", "class_name": "DiveParty" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DiveParty"] }],
+
   // Throttle sign-in guessing and guest creation (per IP). Remove if you prefer a WAF rate-limit rule.
   "ratelimits": [
     { "name": "RL_LOGIN", "namespace_id": "4101", "simple": { "limit": 15, "period": 60 } },

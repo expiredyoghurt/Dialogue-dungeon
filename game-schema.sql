@@ -14,3 +14,10 @@ CREATE TABLE IF NOT EXISTS g_fight (
   p_next INTEGER NOT NULL DEFAULT 0, m_next INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS g_config (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+-- Pupil feedback to the developer (v1.3). Also created automatically on first use.
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, pupil_id INTEGER NOT NULL, class_id INTEGER, name TEXT NOT NULL,
+  kind TEXT NOT NULL, rating TEXT, message TEXT NOT NULL DEFAULT '', ctx TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'new', ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS feedback_status ON feedback(status, ts);

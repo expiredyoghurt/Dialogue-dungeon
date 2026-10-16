@@ -1,4 +1,4 @@
-# Dialogue Dungeon v1.2.0
+# Dialogue Dungeon v1.3.0
 
 Arcade-RPG dialogue-writing practice on Cloudflare Workers + D1 + Durable Objects.
 
@@ -8,6 +8,12 @@ v1.0.0 = v0.16.1 (hidden job tree, instruction and rules scaffolding) + v0.17 (D
 - **Job tree is revealed step by step.** The server only sends the jobs a pupil owns plus the jobs they can unlock next (children of an owned job). Names, damage and perks of everything deeper never reach the browser (`visibleJobs()` in `src/game.js`). The teacher console still shows the full tree. In a Dungeon Dive lobby, teammates' current job names are sent so the party list reads properly (`jobName` in `src/dive.js`).
 - **Instruction and scaffolding.** A Help dialog (How to play / Question types / The rules) opens from the login page, the village, solo fights and Dungeon Dive fights; a dismissible "New here?" card shows until it is first opened. Each question has a collapsible "Rules to remember" box, wrong answers show the specific rules broken (with coloured examples, as in Dialogue Dash), and the profile shows the pupil's three most-missed rules from `/api/me`. The How to play tab gains a Dungeon Dive step when a teacher has switched Dive on.
 - **Dungeon Dive (co-op).** One `DiveParty` Durable Object per party (4-character code, up to 4 pupils). Off by default: a teacher turns it on under Game balance.
+
+## What is new in v1.3.0 (pupil feedback)
+- **💬 Feedback button** for pupils in the village, in solo fights and in Dungeon Dive. A pupil picks Difficulty / Idea / Problem / Other, optionally rates the difficulty (too easy / about right / too hard) and writes up to 600 characters.
+- **Teacher console, new Feedback tab:** newest first, filter by New / Done and by type, shows the pupil's name and class plus the context the server recorded (level, job, and floor and monster if they were mid-fight). Mark done / reopen, delete, or clear everything marked done. Difficulty ratings are totalled at the top.
+- Limits: 5 notes per pupil per hour and 15 per day. Guests can send feedback too. Pupils can't see anyone else's feedback.
+- New `feedback` table, created automatically on first use (also added to `game-schema.sql`), so **no migration step** is needed. `src/feedback.js` holds the code. 57 tests.
 
 ## What is new in v1.2.0 (XP mode)
 - **XP mode toggle** (teacher console, Game balance tab, "XP mode"). *Fixed XP by monster level* (default, unchanged): XP = monster XP × level. *Monster-level XP + 50% of strike damage*: that, plus half of the damage the pupil's answer strikes took off the monster. Basic attacks don't count, and damage is what the strike actually removed (no overkill; the 1-HP "needs more correct answers" save isn't counted). Item/job XP bonuses and the gentle-start multiplier apply to the total.

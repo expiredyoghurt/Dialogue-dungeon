@@ -19,6 +19,10 @@
   // Workers AI: only used when a pupil types a verb that is not in the verb bank (Mode 3).
   "ai": { "binding": "AI" },
 
+  // Dungeon Dive (co-op parties): one Durable Object per party. The class is exported from src/index.js.
+  "durable_objects": { "bindings": [{ "name": "DIVE", "class_name": "DiveParty" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DiveParty"] }],
+
   // Throttle sign-in guessing and guest creation (per IP). Remove if you prefer a WAF rate-limit rule.
   "ratelimits": [
     { "name": "RL_LOGIN", "namespace_id": "4201", "simple": { "limit": 15, "period": 60 } },

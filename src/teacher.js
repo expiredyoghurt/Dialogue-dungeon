@@ -7,6 +7,7 @@ import { signToken, safeEqual, teacherConfigured, newClassCode } from './auth.js
 import { HttpError, json, readJson, clientIp, rateLimited, clip, int, cleanUser, validUser, suggestUsername } from './util.js';
 
 import { configView, configSave } from './game.js';
+import * as feedback from './feedback.js';
 export async function teacherLogin(request, env) {
   if (!teacherConfigured(env)) throw new HttpError(503, 'Teacher sign-in is not set up yet. Set the teacher_user and teacher_password secrets in Cloudflare.');
   if (await rateLimited(env, 'RL_LOGIN', clientIp(request))) throw new HttpError(429, 'Too many tries. Wait a minute and try again.');
@@ -531,6 +532,13 @@ export async function teacherRoute(request, env, url) {
   if ((x = path.match(/^\/verbs\/(\d+)$/))) {
     if (m === 'PUT') return updateVerb(request, env, +x[1]);
     if (m === 'DELETE') return deleteVerb(env, +x[1]);
+  }
+
+  if (path === '/feedback' && m === 'GET') return feedback.list(env, url);
+  if (path === '/feedback/clear-done' && m === 'POST') return feedback.clearDone(env);
+  if ((x = path.match(/^\/feedback\/(\d+)$/))) {
+    if (m === 'PATCH') return feedback.setStatus(request, env, +x[1]);
+    if (m === 'DELETE') return feedback.remove(env, +x[1]);
   }
 
   if (path === '/analytics' && m === 'GET') return analytics(env, url);

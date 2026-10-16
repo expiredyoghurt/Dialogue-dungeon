@@ -5,6 +5,7 @@ import { verifyToken, teacherConfigured } from './auth.js';
 import * as pupil from './pupil.js';
 import * as game from './game.js';
 import * as dive from './dive.js';
+import * as feedback from './feedback.js';
 
 export { DiveParty } from './dive.js'; // the Durable Object class named in wrangler.jsonc
 import { teacherLogin, teacherRoute } from './teacher.js';
@@ -43,6 +44,7 @@ async function route(request, env, url) {
   if (path === '/api/me' && m === 'GET') return pupil.me(env, p);
   if (path === '/api/questions' && m === 'GET') return pupil.listQuestions(env, p, url);
   if (path === '/api/answer' && m === 'POST') return pupil.answer(request, env, p);
+  if (path === '/api/feedback' && m === 'POST') return feedback.submit(request, env, p);
   if (path.startsWith('/api/game/')) return game.route(request, env, p, path, m);
   if (path.startsWith('/api/dive/')) return dive.route(request, env, p, path, m);
   throw new HttpError(404, 'Not found.');
