@@ -54,7 +54,20 @@ function help(tab){const old=document.getElementById('help');if(old)old.remove()
  [['how','How to play'],['modes','Question types'],['rules','The rules']].forEach(([t,l])=>{const b=el('button',0,l);b.dataset.t=t;b.onclick=()=>show(t);tabs.append(b)});
  const top=el('div','row'),x=el('button','alt','Close');x.onclick=()=>d.close();top.append(el('h2','grow','❓ Help'),x);
  d.append(top,tabs,body);d.onclick=e=>{if(e.target===d)d.close()};d.onclose=()=>{d.remove();try{localStorage.ddHelp='1'}catch(e){}};document.body.append(d);show(tab||'how');d.showModal()}
-const helpRow=()=>{const r=el('div','row'),a=el('button','alt','❓ How to play'),b=el('button','alt','📖 Rules');a.onclick=()=>help('how');b.onclick=()=>help('rules');r.append(a,b);return r};
+function feedback(where){const old=document.getElementById('fb');if(old)old.remove();const d=el('dialog');d.id='fb';let kind='difficulty',rating='';
+ const top=el('div','row'),x=el('button','alt','Close');x.onclick=()=>d.close();top.append(el('h2','grow','💬 Tell the developer'),x);
+ const KS=[['difficulty','🎚️ Difficulty'],['suggestion','💡 Idea'],['bug','🐞 Problem'],['other','💬 Other']],RS=[['too_easy','😴 Too easy'],['just_right','👌 About right'],['too_hard','😵 Too hard']];
+ const kinds=el('div','tabs'),rr=el('div','tabs'),ta=el('textarea'),cnt=el('div','m'),msg=el('div'),send=el('button',0,'Send'),form=el('div');
+ ta.rows=5;ta.maxLength=600;
+ const PH={difficulty:'Optional: which floor or monster, and what felt too easy or too hard?',suggestion:'What would make the game better?',bug:'What went wrong? What were you doing when it happened?',other:'What would you like to say?'};
+ const sync=()=>{[...kinds.children].forEach(b=>b.classList.toggle('on',b.dataset.k===kind));[...rr.children].forEach(b=>b.classList.toggle('on',b.dataset.k===rating));rr.style.display=kind==='difficulty'?'':'none';ta.placeholder=PH[kind];cnt.textContent=ta.value.length+' / 600'};
+ KS.forEach(([k,l])=>{const b=el('button',0,l);b.dataset.k=k;b.onclick=()=>{kind=k;sync()};kinds.append(b)});
+ RS.forEach(([k,l])=>{const b=el('button',0,l);b.dataset.k=k;b.onclick=()=>{rating=rating===k?'':k;sync()};rr.append(b)});
+ ta.oninput=sync;
+ send.onclick=async()=>{msg.replaceChildren();send.disabled=true;try{await api('/api/feedback','POST',{kind,rating:kind==='difficulty'?rating:'',message:ta.value,where});form.replaceChildren(el('h3','good','✅ Thank you!'),el('p','m','Your message has been sent to your teacher, who looks after the game.'))}catch(e){msg.replaceChildren(el('p','badc',e.message));send.disabled=false}};
+ form.append(el('p','m','What is your feedback about?'),kinds,el('p','m','How does the game feel right now?'),rr,ta,cnt,msg,send,el('p','m','Your teacher will see your name and what level you are, not your password.'));
+ d.append(top,...((S&&S.fight)||DV?[el('p','m','⏱️ The fight clock keeps running while this is open.')]:[]),form);d.onclick=e=>{if(e.target===d)d.close()};d.onclose=()=>d.remove();document.body.append(d);sync();d.showModal()}
+const helpRow=()=>{const r=el('div','row'),a=el('button','alt','❓ How to play'),b=el('button','alt','📖 Rules'),c=el('button','alt','💬 Feedback');a.onclick=()=>help('how');b.onclick=()=>help('rules');c.onclick=()=>feedback('village');r.append(a,b,c);return r};
 const bar=(c,p)=>{const b=el('div','bar '+c),i=el('i'),g=el('b');i.style.width=g.style.width=Math.max(0,Math.min(100,p))+'%';b.append(i,g);return b};
 let dlP=0,dlM=0,pend=0,q0=Promise.resolve(),motion=!matchMedia('(prefers-reduced-motion: reduce)').matches;
 const setDl=()=>{if(S&&S.fight){const n=performance.now(),f=S.fight;dlP=n+f.pNext-f.now;dlM=n+f.mNext-f.now}};
@@ -136,7 +149,7 @@ function dvBuild(){U={qid:-1,hold:false,mname:''};app.replaceChildren();
  const ac=el('div','card');U.pack=el('p','m');U.pot=el('button','alt');U.pot.onclick=async()=>{U.pot.disabled=true;try{DV=await dapi('drink');dvRender()}catch(e){alert(e.message)}};
  U.auto=el('button','alt');U.auto.onclick=async()=>{try{DV=await dapi('auto',{on:!DV.me.auto});dvRender()}catch(e){alert(e.message)}};
  const rt=el('button','alt','🏃 Retreat & bank my gold');rt.onclick=()=>dvLeave('Retreat to the village? You keep your pack ('+DV.me.pack.gold+' gold) and your party carries on without you.');
- const hl=el('button','alt','📖 Rules');hl.onclick=()=>help('rules');ac.append(U.pack,U.pot,' ',U.auto,' ',hl,' ',rt);U.log=el('div','card');
+ const hl=el('button','alt','📖 Rules');hl.onclick=()=>help('rules');const fbb=el('button','alt','💬 Feedback');fbb.onclick=()=>feedback('dive');ac.append(U.pack,U.pot,' ',U.auto,' ',hl,' ',fbb,' ',rt);U.log=el('div','card');
  app.append(mc,U.party,U.q,U.res,ac,U.log)}
 function dvUpdate(){const mon=DV.mon,me=DV.me;
  if(mon){U.mh.textContent=(mon.kind==='boss'?'👑 BOSS · ':mon.kind==='mid'?'⭐ ':'')+mon.e+' '+mon.name+' · Lv '+mon.level;const k=mon.name+mon.level;if(U.mname!==k){U.mname=k;const i=new Image();i.src='/m/'+mon.img+'.png';i.alt=mon.name;i.style.maxHeight='120px';i.onerror=()=>i.replaceWith(el('span',0,mon.e));U.mi.replaceChildren(i)}
@@ -173,7 +186,7 @@ function fight(){scr=village;U={};app.replaceChildren();const c=el('div','card')
  U.mt=el('div','m');U.mb=bar('',0);U.pt=el('div','m');U.pb=bar('',0);U.tb=bar('t',0);U.tm=bar('t',0);
  const mo=el('label','m'),cb=el('input');cb.type='checkbox';cb.checked=!motion;cb.onchange=()=>{motion=!cb.checked};mo.append(cb,' Reduce motion');
  c.append(U.n,U.arena,U.mt,U.mb,el('p'),U.pt,U.pb,el('div','m','Your next strike'),U.tb,el('div','m','Monster’s next strike'),U.tm,mo);
- U.q=el('div','card');const row=el('div','row');U.pot=el('button','alt');U.pot.onclick=drink;const fl=el('button','alt','🏃 Flee to village'+(S.floors.respawn&&S.fight.need&&S.fight.kills<S.fight.need?' (floor resets)':''));fl.onclick=()=>act('leave');const hl=el('button','alt','📖 Rules');hl.onclick=()=>help('rules');row.append(U.pot,fl,hl);app.append(c,U.q,row);paint();drawQ()}
+ U.q=el('div','card');const row=el('div','row');U.pot=el('button','alt');U.pot.onclick=drink;const fl=el('button','alt','🏃 Flee to village'+(S.floors.respawn&&S.fight.need&&S.fight.kills<S.fight.need?' (floor resets)':''));fl.onclick=()=>act('leave');const hl=el('button','alt','📖 Rules');hl.onclick=()=>help('rules');const fbb=el('button','alt','💬 Feedback');fbb.onclick=()=>feedback('fight');row.append(U.pot,fl,hl,fbb);app.append(c,U.q,row);paint();drawQ()}
 function setMs(f){if(U.ms.dataset.k===f.name)return;U.ms.dataset.k=f.name;U.ms.replaceChildren();if(!f.img){U.ms.textContent=f.e;return}
  const im=new Image();im.alt=f.name;im.onload=()=>{const bh=f.kind==='boss'?200:f.kind?180:115,bw=f.kind==='boss'?300:f.kind?280:170,k=Math.min(2.4,bh/im.naturalHeight,bw/im.naturalWidth);im.style.width=im.naturalWidth*k+'px'};im.src='/m/'+f.img+'.png';U.ms.append(im)}
 function paint(){const f=S.fight,m=S.me;if(!f||!U.n||pend)return;U.n.textContent=f.name+' (Lv '+f.level+') · Floor '+f.floor+(f.need&&f.kills<f.need?' · monster '+(f.kills+1)+' of '+f.need:'')+(f.rage?' · 😡 ENRAGED':'');setMs(f);setBars(f.mobHp,m.hp);const it=S.items[m.potion],qn=S.inv[m.potion]||0;U.pot.textContent=it?it.e+' Drink '+it.n+' (×'+qn+')':'No potion equipped';U.pot.disabled=!it||!qn}

@@ -82,7 +82,7 @@
   // ---------- shell ----------
   function render() {
     if (!S.token) return app.replaceChildren(loginView());
-    const tabs = [['classes', 'Classes & pupils'], ['questions', 'Questions'], ['verbs', 'Verb bank'], ['analytics', 'Analytics'], ['game', 'Game balance']];
+    const tabs = [['classes', 'Classes & pupils'], ['questions', 'Questions'], ['verbs', 'Verb bank'], ['analytics', 'Analytics'], ['game', 'Game balance'], ['feedback', 'Feedback']];
     const body = h('div', { class: 'wrap' }, h('div', { id: 'flash', 'aria-live': 'polite' }), h('div', { id: 'tab' }));
     app.replaceChildren(
       h('header', { class: 'topbar no-print' },
@@ -92,7 +92,7 @@
         tabs.map(([k, l]) => h('button', { class: 'tab', type: 'button', 'aria-current': S.tab === k ? 'page' : false, onclick: () => { S.tab = k; render(); } }, l))),
       body,
     );
-    const view = { classes: classesView, questions: questionsView, verbs: verbsView, analytics: analyticsView, game: gameView }[S.tab];
+    const view = { classes: classesView, questions: questionsView, verbs: verbsView, analytics: analyticsView, game: gameView, feedback: feedbackView }[S.tab];
     guard(async () => {
       if (!S.meta) S.meta = await (await fetch('/api/meta')).json();
       await view(document.getElementById('tab'));
@@ -579,6 +579,41 @@
       h('p', { class: 'muted' }, 'Leave gold/XP blank to use the defaults. Drop rates are % per win, per item (maximum 10%); blank = never drops.'),
       h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, ['Monster', 'Gold× min', 'Gold× max', 'XP×', ...ik.map((k) => d.items[k].e + ' ' + d.items[k].n)].map((t) => h('th', null, t)))), h('tbody', null, mobs.map((r) => r.tr)))),
       h('p', null, h('button', { class: 'btn', type: 'button', onclick: save }, 'Save game balance'))));
+  }
+
+  // ---------- feedback from pupils ----------
+  const FB_KIND = { difficulty: '🎚️ Difficulty', suggestion: '💡 Idea', bug: '🐞 Problem', other: '💬 Other' };
+  const FB_RATING = { too_easy: '😴 Too easy', just_right: '👌 About right', too_hard: '😵 Too hard' };
+  async function feedbackView(root) {
+    const f = S.fb || (S.fb = { status: 'new', kind: 'all' });
+    const d = await api(`/feedback?status=${f.status}&kind=${f.kind}`);
+    const again = () => feedbackView(document.getElementById('tab'));
+    const mk = (key, opts) => {
+      const s = h('select', { 'aria-label': key === 'status' ? 'Show' : 'Type' }, opts.map(([v, l]) => h('option', { value: v }, l)));
+      s.value = f[key];
+      s.addEventListener('change', () => { f[key] = s.value; guard(again)(); });
+      return s;
+    };
+    const ctxText = (c) => [c.level != null ? 'Lv ' + c.level : '', c.job || '', c.floor != null ? 'floor ' + c.floor : '', c.mob ? c.mob + (c.mlv ? ' (Lv ' + c.mlv + ')' : '') : '', c.where === 'dive' ? 'Dungeon Dive' : ''].filter(Boolean).join(' · ') || '—';
+    const r = d.ratings, total = r.too_easy + r.just_right + r.too_hard;
+    const rows = d.items.map((it) => h('tr', null,
+      h('td', null, fmtTime(it.ts)),
+      h('td', null, h('b', null, it.name), h('div', { class: 'muted small' }, it.className)),
+      h('td', null, FB_KIND[it.kind] || it.kind, it.rating ? h('div', { class: 'small' }, FB_RATING[it.rating]) : null),
+      h('td', { style: 'white-space:pre-wrap;min-width:14em' }, it.message || '—'),
+      h('td', { class: 'small' }, ctxText(it.ctx)),
+      h('td', { style: 'white-space:nowrap' },
+        h('button', { class: 'btn small', type: 'button', onclick: guard(async () => { await api('/feedback/' + it.id, { method: 'PATCH', body: { status: it.status === 'done' ? 'new' : 'done' } }); await again(); }) }, it.status === 'done' ? 'Reopen' : 'Mark done'), ' ',
+        h('button', { class: 'btn small danger', type: 'button', onclick: guard(async () => { if (!confirm('Delete this feedback?')) return; await api('/feedback/' + it.id, { method: 'DELETE' }); await again(); }) }, 'Delete'))));
+    root.replaceChildren(h('section', { class: 'panel' },
+      h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap;align-items:center' }, h('h2', { class: 'grow', style: 'margin:0' }, 'Pupil feedback'),
+        mk('status', [['new', `New (${d.counts.new})`], ['done', `Done (${d.counts.done})`], ['all', 'All']]),
+        mk('kind', [['all', 'All types'], ...Object.entries(FB_KIND)]),
+        d.counts.done ? h('button', { class: 'btn small ghost', type: 'button', onclick: guard(async () => { if (!confirm(`Delete all ${d.counts.done} feedback notes marked done?`)) return; await api('/feedback/clear-done', { method: 'POST', body: {} }); await again(); }) }, 'Clear done') : null),
+      h('p', { class: 'muted small' }, 'Pupils send feedback from the 💬 Feedback button in the village, in solo fights and in Dungeon Dive. You see their name, class, level, job and, in a fight, the floor and monster. Difficulty ratings so far (all time): ',
+        total ? `${FB_RATING.too_easy} ${r.too_easy} · ${FB_RATING.just_right} ${r.just_right} · ${FB_RATING.too_hard} ${r.too_hard}` : 'none yet', '.'),
+      rows.length ? h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, ['When', 'Pupil', 'Type', 'Message', 'Where they were', ''].map((t) => h('th', null, t)))), h('tbody', null, rows)))
+        : h('p', { class: 'muted' }, 'No feedback here yet.')));
   }
 
   async function analyticsView(root) {
