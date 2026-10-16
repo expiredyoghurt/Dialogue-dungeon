@@ -39,6 +39,7 @@
     editQ: null,
     ana: { cls: '', days: 30, by: 'rule' },
     msg: '',
+    pl: { cls: 'all', q: '', sel: null }, // pupil stats tab
   };
 
   async function api(path, { method = 'GET', body } = {}) {
@@ -82,17 +83,17 @@
   // ---------- shell ----------
   function render() {
     if (!S.token) return app.replaceChildren(loginView());
-    const tabs = [['classes', 'Classes & pupils'], ['questions', 'Questions'], ['verbs', 'Verb bank'], ['analytics', 'Analytics'], ['game', 'Game balance'], ['feedback', 'Feedback']];
+    const tabs = [['classes', 'Classes & pupils'], ['questions', 'Questions'], ['verbs', 'Verb bank'], ['analytics', 'Analytics'], ['game', 'Game balance'], ['feedback', 'Feedback'], ['players', 'Pupil stats']];
     const body = h('div', { class: 'wrap' }, h('div', { id: 'flash', 'aria-live': 'polite' }), h('div', { id: 'tab' }));
     app.replaceChildren(
       h('header', { class: 'topbar no-print' },
         h('div', { class: 'brand' }, h('span', { class: 'bubble-logo', 'aria-hidden': 'true' }, '“”'), 'Dialogue Dash · Teacher'),
-        h('button', { class: 'btn ghost small', type: 'button', onclick: () => { S.token = ''; store.del('dd_ttoken'); render(); } }, 'Sign out')),
+        h('button', { class: 'btn ghost small', type: 'button', onclick: () => { S.token = ''; S.pl.sel = null; store.del('dd_ttoken'); render(); } }, 'Sign out')),
       h('nav', { class: 'tabs no-print', 'aria-label': 'Sections' },
         tabs.map(([k, l]) => h('button', { class: 'tab', type: 'button', 'aria-current': S.tab === k ? 'page' : false, onclick: () => { S.tab = k; render(); } }, l))),
       body,
     );
-    const view = { classes: classesView, questions: questionsView, verbs: verbsView, analytics: analyticsView, game: gameView, feedback: feedbackView }[S.tab];
+    const view = { classes: classesView, questions: questionsView, verbs: verbsView, analytics: analyticsView, game: gameView, feedback: feedbackView, players: playersView }[S.tab];
     guard(async () => {
       if (!S.meta) S.meta = await (await fetch('/api/meta')).json();
       await view(document.getElementById('tab'));
@@ -525,6 +526,8 @@
     const dv2 = [c.dive.midEvery, c.dive.bossEvery, c.dive.dropMult].map((v) => num(v, 4));
     const rs = h('input', { type: 'checkbox', checked: c.respawn ? true : null });
     rs.checked = !!c.respawn;
+    const sy = h('input', { type: 'checkbox' });
+    sy.checked = c.story !== false;
     const xm = h('select', null, h('option', { value: 'level' }, 'Fixed XP by monster level'), h('option', { value: 'damage' }, 'Monster-level XP + 50% of strike damage'));
     xm.value = c.xpMode === 'damage' ? 'damage' : 'level';
     const st = [c.start.levels, c.start.gold, c.start.xp, c.start.dmg, c.start.bossHp].map((v) => num(v, 4));
@@ -538,7 +541,7 @@
       return { id, ov, di, tr: h('tr', null, h('td', null, m.img ? h('img', { src: '/m/' + m.img + '.png', height: 28, alt: '' }) : m.e, ' ' + m.n), ...ov.map((i) => h('td', null, i)), ...di.map((i) => h('td', null, i))) };
     });
     const save = guard(async () => {
-      const body = { hp: { base: val(base), tiers: [...tiers.children].map((r) => r._get()) }, def: { goldMin: val(g1), goldMax: val(g2), xp: val(xp), dmg: val(dm) }, floors: [...bands.children].map((r) => r._get()), boss: Object.fromEntries(bk.map((k, i) => [k, val(bs[i])])), speed: { turn: val(sp[0]), offset: val(sp[1]), ranged: val(sp[2]), cap: val(sp[3]) / 100, monster: val(sp[4]) / 100 }, shopCost: sc.map(val), respawn: rs.checked, xpMode: xm.value, dive: { on: dvOn.checked, hpPer: val(dv[0]), poolPer: val(dv[1]), balanced: val(dv[2]), gap: val(dv[3]), revive: val(dv[4]), hpScale: dvHp.checked, bosses: dvBoss.checked, midEvery: val(dv2[0]), bossEvery: val(dv2[1]), dropMult: val(dv2[2]) }, strike: val(ss), must: { mob: val(mu[0]), mid: val(mu[1]), boss: val(mu[2]) }, start: { levels: val(st[0]), gold: val(st[1]), xp: val(st[2]), dmg: val(st[3]), bossHp: val(st[4]) }, items: Object.fromEntries(itemRows.map((r) => [r.id, Object.fromEntries(fields.map(([k, pct], i) => [k, r.ins[i] ? val(r.ins[i]) / (pct ? 100 : 1) : undefined]).filter(([, v]) => v != null && !Number.isNaN(v)))])), perks: Object.fromEntries(pj.map((r) => [r.id, Object.fromEntries(pd.map(([k, , pct], i) => [k, val(r.ins[i]) / (pct ? 100 : 1)]).filter(([, v]) => v > 0))])), mobs: {} };
+      const body = { hp: { base: val(base), tiers: [...tiers.children].map((r) => r._get()) }, def: { goldMin: val(g1), goldMax: val(g2), xp: val(xp), dmg: val(dm) }, floors: [...bands.children].map((r) => r._get()), boss: Object.fromEntries(bk.map((k, i) => [k, val(bs[i])])), speed: { turn: val(sp[0]), offset: val(sp[1]), ranged: val(sp[2]), cap: val(sp[3]) / 100, monster: val(sp[4]) / 100 }, shopCost: sc.map(val), respawn: rs.checked, story: sy.checked, xpMode: xm.value, dive: { on: dvOn.checked, hpPer: val(dv[0]), poolPer: val(dv[1]), balanced: val(dv[2]), gap: val(dv[3]), revive: val(dv[4]), hpScale: dvHp.checked, bosses: dvBoss.checked, midEvery: val(dv2[0]), bossEvery: val(dv2[1]), dropMult: val(dv2[2]) }, strike: val(ss), must: { mob: val(mu[0]), mid: val(mu[1]), boss: val(mu[2]) }, start: { levels: val(st[0]), gold: val(st[1]), xp: val(st[2]), dmg: val(st[3]), bossHp: val(st[4]) }, items: Object.fromEntries(itemRows.map((r) => [r.id, Object.fromEntries(fields.map(([k, pct], i) => [k, r.ins[i] ? val(r.ins[i]) / (pct ? 100 : 1) : undefined]).filter(([, v]) => v != null && !Number.isNaN(v)))])), perks: Object.fromEntries(pj.map((r) => [r.id, Object.fromEntries(pd.map(([k, , pct], i) => [k, val(r.ins[i]) / (pct ? 100 : 1)]).filter(([, v]) => v > 0))])), mobs: {} };
       mobs.forEach((r) => {
         const o = { drops: {} };
         ['goldMin', 'goldMax', 'xp'].forEach((k, i) => { const v = val(r.ov[i]); if (v != null) o[k] = v; });
@@ -567,6 +570,7 @@
       h('label', { class: 'row' }, dvBoss, ' Mid-bosses and bosses in Dungeon Dive. A mid-boss appears every ', dv2[0], ' monsters and a boss every ', dv2[1], ' (a boss wins when both fall on the same monster; 0 turns that kind off). They use the mid-boss and boss health, damage and correct-answer numbers above, plus their own drop tables.'),
       h('p', null, 'Dungeon Dive drop multiplier: ×', dv2[2], ' on every drop chance in a dive (1 = same as solo, 0 = no drops). Each item’s chance is capped at 10% first, so ×2 gives at most 20%.'),
       h('h3', null, 'XP mode'), h('label', { class: 'row' }, xm), h('p', null, 'Fixed XP by monster level (default): every kill gives the same XP for that monster. Monster-level XP + 50% of strike damage: the same XP, plus half of the damage the pupil’s answer strikes took off the monster (basic attacks and overkill don’t count). Pupil XP bonuses and the gentle-start multiplier apply to the total. In Dungeon Dive, the base XP is still shared equally, but each pupil’s strike-damage XP comes only from their own strikes.'),
+      h('h3', null, 'Story: The Hush'), h('label', { class: 'row' }, sy, ' Show the story. Pupils meet short story scenes (under 80 words each) in the village at Level 10, 20 … 100 and on the victory screen after the boss on Floor 10, 20 … 100, plus a short note after each mid-boss. They can reread them under “The story so far…”, and a “Voices restored” bar tracks Elder Wren and Parley. Off: no scenes, no story card, and the boss names stay as they are. Pupils’ story progress is kept while it is off.'),
       h('h3', null, 'Monster respawn'), h('label', { class: 'row' }, rs, ' Monsters respawn when a pupil retreats or is defeated. Off: kills on a floor are kept. On: if a pupil flees or returns to the village before clearing a floor, they must fight all of that floor’s monsters again (cleared floors stay cleared, and the monster count isn’t re-rolled).'),
       h('h3', null, 'Monsters per floor'), h('p', { class: 'muted' }, 'The count is chosen at random within the range the first time a pupil explores a floor. Pupils must defeat every monster to find the stairs down. Every 5th floor ends with a mid-boss and every 10th with a boss.'), bands,
       h('button', { class: 'btn small', type: 'button', onclick: () => addBand({ upTo: (c.floors.at(-1)?.upTo || 0) + 10, min: 10, max: 15 }) }, '+ Add floor range'),
@@ -708,6 +712,93 @@
         h('section', { class: 'panel' }, h('h2', null, 'Most common mistakes'), bars.children.length ? bars : h('p', { class: 'muted' }, 'No mistakes recorded. 🎉')),
         h('section', { class: 'panel' }, h('h2', null, 'Hardest questions'), hard)));
   }
+
+  // ---------- Pupil stats: view and edit pupils' game stats (beta testing) ----------
+  async function playersView(root) {
+    if (S.pl.sel) return playersEdit(root, S.pl.sel);
+    const q = new URLSearchParams({ class: S.pl.cls, q: S.pl.q });
+    const d = await api('/players?' + q);
+    const cls = h('select', { 'aria-label': 'Class' }, h('option', { value: 'all' }, 'All pupils'), d.classes.map((c) => h('option', { value: String(c.id) }, c.name)), h('option', { value: 'guests' }, 'Guests'));
+    cls.value = S.pl.cls;
+    cls.addEventListener('change', () => { S.pl.cls = cls.value; render(); });
+    const search = h('input', { type: 'search', placeholder: 'Search name or username', value: S.pl.q, 'aria-label': 'Search' });
+    search.addEventListener('keydown', (e) => { if (e.key === 'Enter') { S.pl.q = search.value; render(); } });
+    const csv = () => download('pupil-stats.csv', [['Name', 'Username', 'Class', 'Level', 'XP', 'XP needed', 'HP', 'Max HP', 'Gold', 'Gold in pack', 'Job', 'Jobs unlocked', 'Floors cleared', 'Kills', 'Last seen'], ...d.pupils.map((p) => [p.name, p.username, p.className, p.level, p.xp, p.need, p.hp, p.maxHp, p.gold, p.runGold, p.jobName, p.jobs, p.floors, p.kills, p.lastSeen ? new Date(p.lastSeen).toISOString() : ''])].map((r) => r.map(csvCell).join(',')).join('\n'));
+    const rows = d.pupils.map((p) => h('tr', null,
+      h('td', null, h('b', null, p.name), h('div', { class: 'muted small' }, p.username + (p.started ? '' : ' · not played yet'))),
+      h('td', null, p.className), h('td', null, p.level), h('td', null, p.xp + ' / ' + p.need), h('td', null, p.hp + ' / ' + p.maxHp),
+      h('td', null, p.gold + (p.runGold ? ' (+' + p.runGold + ')' : '')), h('td', null, p.jobName), h('td', null, p.floors), h('td', null, p.kills), h('td', { class: 'small' }, fmtTime(p.lastSeen)),
+      h('td', null, h('button', { class: 'btn small', type: 'button', onclick: () => { S.pl.sel = p.id; render(); } }, 'Edit'))));
+    root.replaceChildren(h('section', { class: 'panel' },
+      h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap;align-items:center' }, h('h2', { class: 'grow', style: 'margin:0' }, 'Pupil stats (beta testing)'), cls, search,
+        h('button', { class: 'btn small', type: 'button', onclick: csv }, 'Download CSV')),
+      h('p', { class: 'muted small' }, d.pupils.length + ' pupil' + (d.pupils.length === 1 ? '' : 's') + '. Edits change real progress straight away, so use this for beta testing.'),
+      d.pupils.length ? h('div', { class: 'scroll-x' }, h('table', { class: 'tbl' }, h('thead', null, h('tr', null, ['Pupil', 'Class', 'Level', 'XP', 'HP', 'Gold', 'Job', 'Floors cleared', 'Kills', 'Last seen', ''].map((t) => h('th', null, t)))), h('tbody', null, rows)))
+        : h('p', { class: 'muted' }, 'No pupils match.')));
+  }
+
+  async function playersEdit(root, id) {
+    const d = await api('/players/' + id), P = d.player;
+    const back = () => { S.pl.sel = null; render(); };
+    const num = (v, max) => h('input', { type: 'number', min: 0, max, step: 1, value: v, style: 'width:9em' });
+    const f = { level: num(P.level, 500), xp: num(P.xp), hp: num(P.hp), gold: num(P.gold, 1e9), runGold: num(P.runGold, 1e9), kills: num(P.kills), floors: num(P.floors, d.topFloor), shop: num(P.shop, 4) };
+    f.level.min = 1; f.hp.min = 1; f.shop.min = 1;
+    const jobs = new Set(P.jobs), jobBox = h('div', { class: 'row', style: 'gap:6px 14px;flex-wrap:wrap' }), active = h('select', { 'aria-label': 'Active job' });
+    const kids = (j) => Object.keys(d.jobs).filter((k) => d.jobs[k].p === j);
+    const drop = (j) => { jobs.delete(j); kids(j).forEach(drop); };
+    const add = (j) => { jobs.add(j); if (d.jobs[j].p) add(d.jobs[j].p); };
+    const drawJobs = () => {
+      jobs.add('villager');
+      if (!jobs.has(active.value)) active.value = 'villager';
+      jobBox.replaceChildren(...Object.entries(d.jobs).map(([k, j]) => {
+        const cb = h('input', { type: 'checkbox', checked: jobs.has(k) ? true : null, disabled: k === 'villager' ? true : null });
+        cb.checked = jobs.has(k);
+        cb.addEventListener('change', () => { cb.checked ? add(k) : drop(k); drawJobs(); });
+        return h('label', { class: 'row', style: 'gap:4px' }, cb, j.e + ' ' + j.n);
+      }));
+    };
+    Object.entries(d.jobs).forEach(([k, j]) => active.append(h('option', { value: k }, j.e + ' ' + j.n)));
+    active.value = P.job;
+    active.addEventListener('change', () => { add(active.value); drawJobs(); });
+    drawJobs();
+    const slots = { weapon: ['Weapon', 'weapon'], armor: ['Armour', 'armor'], acc: ['Accessory', 'acc'], potion: ['Potion', 'use'] }, eq = {};
+    for (const [k, [, kind]] of Object.entries(slots)) {
+      eq[k] = h('select', { 'aria-label': slots[k][0] }, h('option', { value: '' }, '— none —'), Object.entries(d.items).filter(([, i]) => i.slot === kind).map(([id, i]) => h('option', { value: id }, i.e + ' ' + i.n)));
+      eq[k].value = P[k] || '';
+    }
+    const inv = { ...d.inv }, invBox = h('div'), addSel = h('select', { 'aria-label': 'Add an item' }, h('option', { value: '' }, '+ Add an item…'), Object.entries(d.items).map(([id, i]) => h('option', { value: id }, i.e + ' ' + i.n + ' (' + i.slot + ')')));
+    const drawInv = () => invBox.replaceChildren(...Object.entries(inv).map(([id, q]) => {
+      const qi = h('input', { type: 'number', min: 0, max: 99, step: 1, value: q, style: 'width:5em', 'aria-label': d.items[id].n + ' quantity' });
+      qi.addEventListener('input', () => { inv[id] = Number(qi.value); });
+      return h('div', { class: 'row', style: 'gap:8px;align-items:center' }, h('span', { class: 'grow' }, d.items[id].e + ' ' + d.items[id].n), qi);
+    }), Object.keys(inv).length ? null : h('p', { class: 'muted small' }, 'Nothing in the bag.'));
+    addSel.addEventListener('change', () => { if (addSel.value && inv[addSel.value] == null) inv[addSel.value] = 1; addSel.value = ''; drawInv(); });
+    drawInv();
+    const auto = h('input', { type: 'checkbox' });
+    const field = (label, input, hint) => h('label', { class: 'field' }, h('span', null, label), input, hint ? h('span', { class: 'muted small' }, hint) : null);
+    const save = guard(async () => {
+      const body = Object.fromEntries(Object.entries(f).map(([k, i]) => [k, Number(i.value)]));
+      Object.assign(body, { job: active.value, jobs: [...jobs], inv, weapon: eq.weapon.value || null, armor: eq.armor.value || null, acc: eq.acc.value || null, potion: eq.potion.value || null });
+      await api('/players/' + id, { method: 'PUT', body });
+      await playersEdit(document.getElementById('tab'), id);
+      flash('Saved. The pupil sees it the next time their game loads or they return to the village.');
+    });
+    const act = (label, cls, fn) => h('button', { class: 'btn small ' + cls, type: 'button', onclick: guard(fn) }, label);
+    root.replaceChildren(h('section', { class: 'panel' },
+      h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap;align-items:center' }, h('h2', { class: 'grow', style: 'margin:0' }, 'Edit ' + d.pupil.name + ' · ' + d.pupil.className), h('button', { class: 'btn small ghost', type: 'button', onclick: back }, '← All pupils')),
+      h('p', { class: 'muted small' }, 'Saving ends any fight the pupil is in the middle of, so a stale fight can’t overwrite your numbers. A pupil who has the game open should return to the village or reload to see the change.' + (d.inFight ? ' This pupil is in a fight right now.' : '')),
+      h('div', { class: 'row', style: 'gap:14px;flex-wrap:wrap;align-items:end' },
+        field('Level', f.level), field('XP into this level', f.xp, 'needs ' + P.need + ' at this level'), field('HP', f.hp, 'max ' + P.maxHp), field('Gold (banked)', f.gold), field('Gold in pack', f.runGold), field('Kills', f.kills), field('Floors cleared', f.floors, 'in a row from Floor 1, 0 to ' + d.topFloor), field('Shop level', f.shop, '1 to 4')),
+      h('p', { class: 'muted small' }, 'Job points: ' + P.jobPoints + ' (a pupil’s level earns points; each extra job spends one). Story scenes seen: ' + P.storySeen + '.'),
+      h('h3', null, 'Job'), field('Active job', active), h('p', { class: 'muted small' }, 'Tick the jobs they have unlocked. Ticking a job also ticks the ones it needs; unticking removes the ones that depend on it.'), jobBox,
+      h('h3', null, 'Equipped'), h('div', { class: 'row', style: 'gap:14px;flex-wrap:wrap' }, Object.entries(slots).map(([k, [l]]) => field(l, eq[k]))),
+      h('h3', null, 'Bag'), invBox, addSel,
+      h('div', { class: 'row', style: 'gap:10px;margin-top:16px;flex-wrap:wrap' },
+        h('button', { class: 'btn', type: 'button', onclick: save }, 'Save changes'),
+        act('Replay story from the start', 'ghost', async () => { await api('/players/' + id, { method: 'PUT', body: { resetStory: true } }); await playersEdit(document.getElementById('tab'), id); flash('Story progress reset: the pupil will see the scenes again.'); }),
+        act('Reset to a new player…', 'danger', async () => { if (!confirm('Reset ' + d.pupil.name + ' to a brand-new player? Level, gold, jobs, bag, floors and story progress are all deleted. Their answer history is kept.')) return; await api('/players/' + id + '/reset', { method: 'POST' }); await playersEdit(document.getElementById('tab'), id); flash('Reset.'); }))));
+  }
+
 
   render();
 })();
