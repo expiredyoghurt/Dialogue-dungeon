@@ -155,6 +155,15 @@ export const DEFAULT_CFG = {
   // Monsters respawn: when on, fleeing to the village, returning to it between fights, or being defeated wipes the kill count of any floor
   // that is not cleared yet, so the pupil must fight all of its monsters again. Off (default): kills on a floor are kept.
   respawn: false,
+  // XP mode: 'level' (default) = fixed XP by monster level; 'damage' = that, plus 50% of the damage dealt to the monster by answer strikes
+  // (basic attacks don't count; damage is what the strike actually took off, so overkill is not counted).
+  xpMode: 'level',
+  // Dungeon Dive (co-op party mode, off until a teacher turns it on). hpPer / poolPer: each extra party member adds this many monsters' worth
+  // of HP / of gold+XP to the pool (pool is then split equally); balanced: bonus gold+XP for a melee+ranged+magic+healer party;
+  // gap: seconds between monsters; revive: fraction of max HP a downed member comes back with when the next monster appears.
+  // hpScale: off = monster HP ignores party size (hpPer unused). bosses: on = every midEvery-th monster is a mid-boss and every bossEvery-th a boss (0 = that kind off;
+  // a boss wins a clash). dropMult: multiplies every drop chance in a dive (each item's rate is capped at MAX_DROP first).
+  dive: { on: false, hpPer: 1, poolPer: 1, balanced: 0.25, gap: 6, revive: 0.3, hpScale: true, bosses: false, midEvery: 20, bossEvery: 40, dropMult: 1 },
   // Answer strike: a correct answer deals (strike + the job's bonus-strike perk) x the pupil's attack. strike = N, default 3.
   strike: 3,
   // Correct answers needed in a fight before the monster can die (0 = basic attacks alone may finish it). Until then it is left on 1 HP.
@@ -187,6 +196,8 @@ export const cfgFrom = (raw) => {
     if (raw.mobs) c.mobs = raw.mobs;
     if (raw.floors && raw.floors.length) c.floors = raw.floors;
     if (raw.respawn != null) c.respawn = !!raw.respawn;
+    if (raw.xpMode === 'damage') c.xpMode = 'damage';
+    if (raw.dive) Object.assign(c.dive, raw.dive);
     if (Number.isFinite(Number(raw.strike)) && raw.strike !== null && raw.strike !== '') c.strike = Number(raw.strike);
     if (raw.must) Object.assign(c.must, raw.must);
     if (raw.start) Object.assign(c.start, raw.start);
@@ -202,8 +213,8 @@ export function hpFor(lv, cfg) {
 }
 // 100 floors; monsters on floor N are level 1..N; every 5th floor ends with a mid-boss and every 10th with a boss (both level N).
 // Which mid-boss / boss waits at the end of each 5th / 10th floor (floors 5, 15, ... 95 and 10, 20, ... 100); the bosses repeat, tougher each time as floor level rises.
-const MIDS = ['monarch', 'cyclops', 'dragon', 'shadowbeast', 'warlord', 'matriarch', 'wyvern', 'lichacolyte', 'paladin', 'knight'];
-const BOSSES = ['emperor', 'hydraqueen', 'overlord', 'voidboss', 'lichking'];
+export const MIDS = ['monarch', 'cyclops', 'dragon', 'shadowbeast', 'warlord', 'matriarch', 'wyvern', 'lichacolyte', 'paladin', 'knight'];
+export const BOSSES = ['emperor', 'hydraqueen', 'overlord', 'voidboss', 'lichking'];
 const BANDS = [
   [10, 'Cellar', ['slime', 'mole', 'snail', 'mushroom', 'bat', 'hippo']],
   [25, 'Tunnels', ['spider', 'centipede', 'ooze', 'squid', 'goblinscout', 'wisp', 'bat', 'slime']],

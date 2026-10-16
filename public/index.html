@@ -41,13 +41,14 @@ const HOW=[['🏘️','Start in the village','You begin as a Villager. Look at y
 ['🧪','Potions and gear','Equip one weapon, one armour, one accessory and one potion in your profile. Turn on auto-drink and your potion is used when your HP drops below 30%.'],
 ['🌳','Level up and change jobs','At levels 10, 20, 40 and 60 (then every 20 levels) you earn a job point. Spend it on a new job in your profile. You only see the jobs you can unlock next; more appear as you grow.'],
 ['📚','The questions get harder as you go down','Floors 1–10 ask “Rewrite it”. Floors 11–50 add “Spot the error”. Floors 51 and below add “Upgrade the tag”.']];
+const DIVE=['🧭','Dungeon Dive: play as a team','Up to 4 pupils join a party with a 4-letter code. Everyone answers their own question and all your hits land on the same monster, which gets stronger with every kill. Bring a melee, a ranged, a magic and a healer job for bonus gold and XP. Gold and loot are only kept if you retreat; if the whole party is wiped out you keep your XP only.'];
 const MODES=[['1','Rewrite it','The sentence has lost its punctuation. Retype it with speech marks, capital letters, commas and end punctuation in the right places. You get 3 tries; each wrong try tells you which rules to check.',[1,2,3,4,5,6]],
 ['2','Spot the error','Step 1: tap every word or gap that has a mistake (the question tells you how many). Step 2: type the fix in each box you found. Missed spots are shown at the end.',[1,2,3,4,5,6]],
 ['3','Upgrade the tag','Replace “said” with one strong saying verb that shows how the speaker feels, such as “stammered” or “snapped”. Use the hint if you are stuck. You get 3 tries.',[7]]];
 function help(tab){const old=document.getElementById('help');if(old)old.remove();const d=el('dialog');d.id='help';const body=el('div'),tabs=el('div','tabs');
  const show=t=>{[...tabs.children].forEach(b=>b.classList.toggle('on',b.dataset.t===t));body.replaceChildren();
-  if(S&&S.fight)body.append(el('p','m','⏱️ The fight clock keeps running while this is open.'));
-  if(t==='how')HOW.forEach(([e,h,x])=>{const r=el('div','step');r.append(el('div','ic',e));const c=el('div');c.append(el('b',0,h),el('div','m',x));r.append(c);body.append(r)});
+  if(S&&(S.fight||DV))body.append(el('p','m','⏱️ The fight clock keeps running while this is open.'));
+  if(t==='how')HOW.concat(S&&S.dive?[DIVE]:[]).forEach(([e,h,x])=>{const r=el('div','step');r.append(el('div','ic',e));const c=el('div');c.append(el('b',0,h),el('div','m',x));r.append(c);body.append(r)});
   else if(t==='modes')MODES.forEach(([n,h,x,rs])=>{const c=el('div','card');c.append(el('h3',0,'Mode '+n+': '+h),el('p','m',x),el('div','m','Rules used: '+rs.join(', ')));body.append(c)});
   else{body.append(el('p','m','Coloured marks show the speech marks (blue) and punctuation (green).'));for(let n=1;n<=7;n++){const c=ruleCard(n,1);if(c)body.append(c)}if(!META)body.append(el('p','badc','Rules could not be loaded. Check your connection and try again.'))}};
  [['how','How to play'],['modes','Question types'],['rules','The rules']].forEach(([t,l])=>{const b=el('button',0,l);b.dataset.t=t;b.onclick=()=>show(t);tabs.append(b)});
@@ -77,7 +78,7 @@ function village(){scr=village;const m=S.me;app.replaceChildren();const c=el('di
  if(m.stage<m.stageMax){const c0=S.shopCost[m.stage-1],ub=el('button',0,'⬆️ Upgrade the shop to level '+(m.stage+1)+' — '+c0+' gold');ub.disabled=m.gold<c0;ub.onclick=()=>act('upgrade');s.append(ub)}
  else s.append(el('p','m',['Unlock the Adventurer job to be able to upgrade the shop.','Unlock a branch class (Fighter, Archer or Acolyte) to upgrade the shop again.','Unlock a top-tier class from one of your jobs for the final upgrade.','The shop is fully upgraded!'][m.stage-1]));
  S.shop.map(id=>[id,S.items[id]]).forEach(([id,i])=>{const own=i.slot!=='use'&&S.inv[id],r=el('div','row');r.append(el('span','grow',i.e+' '+i.n+' — '+st(i)+(i.slot==='use'?' (have '+(S.inv[id]||0)+')':'')));const b=el('button','alt',own?'Owned':'Buy '+i.price+'g');b.disabled=!!own||m.gold<i.price;b.onclick=()=>act('buy',{item:id});r.append(b);s.append(r)});
- app.append(c,f,s);const bn=document.querySelector('.banner');if(bn)app.prepend(bn)}
+ if(S.dive){const d=el('div','card');d.append(el('h3',0,'🧭 Dungeon Dive'),el('p','m','Team up with up to 3 friends and fight an endless dungeon together.'));const db=el('button',0,dcode?'Back to your party ('+dcode+')':'Enter Dungeon Dive');db.onclick=dcode?dvResume:diveHome;d.append(db);app.append(c,d,f,s)}else app.append(c,f,s);const bn=document.querySelector('.banner');if(bn)app.prepend(bn)}
 function profile(){scr=profile;const m=S.me,J=S.jobTree,ch=j=>{const c=[];for(let y=j;y;y=J[y]&&J[y].p)c.push(y);return c},ok=i=>!i.fam||ch(m.job).includes(i.fam)||(m.job==='adventurer'&&i.slot==='weapon'&&i.st===3);app.replaceChildren();const c=el('div','card');
  c.append(pimg(m.job,120),el('h2',0,'👤 '+m.name+' · Lv '+m.level),el('p',0,J[m.job].e+' '+J[m.job].n+': base damage '+m.base+' + weapon = up to '+m.atk+' per hit · armour '+m.def),el('p','m','Perks: '+(ptxt(m.perks)||'none')));
  [['weapon','🗡️ Weapon','weapon'],['armor','🛡️ Armour','armor'],['acc','💍 Accessory','acc'],['potion','🧪 Potion','use']].forEach(([k,l,kind])=>{const r=el('div','row');r.append(el('b','grow',l));const sel=el('select');sel.append(new Option('— none —',''));for(const[id,q]of Object.entries(S.inv)){const i=S.items[id];if(i.slot===kind&&ok(i))sel.append(new Option(i.n+' ('+(kind==='use'?'×'+q+', ':'')+st(i)+')',id))}sel.value=m[k]||'';sel.onchange=()=>act('slot',{slot:k,item:sel.value||null});r.append(sel);c.append(r)});
@@ -99,6 +100,61 @@ function profile(){scr=profile;const m=S.me,J=S.jobTree,ch=j=>{const c=[];for(le
   if(!e.length)rp.append(el('p','m','No slips recorded yet. Answer some questions and your trickiest rules will show up here.'));
   else{rp.append(el('p','m','These rules cost you the most slips lately:'));e.forEach(([k,v])=>{const c=ruleCard(+k,1);if(c){c.append(el('div','m',v+' slip'+(v>1?'s':'')+' in your last answers'));rp.append(c)}})}}).catch(()=>rp.remove());
  const back=el('button','alt','← Back to village');back.onclick=village;app.append(c,t,rp,back)}
+// ---- Dungeon Dive (party mode) ----
+let DV=null,dcode=sessionStorage.ddp||'',dvT=null,dvBusy=false,dvSig='',dvGen=0;
+const dapi=(a,b)=>api('/api/dive/'+a,'POST',{code:dcode,...b});
+const setBar=(b,p)=>{b.children[0].style.width=b.children[1].style.width=Math.max(0,Math.min(100,p))+'%'};
+const ROLE={melee:'⚔️ Melee',ranged:'🏹 Ranged',magic:'🔮 Magic',healer:'✨ Healer'};
+function dvStop(){clearInterval(dvT);dvT=null;DV=null;U={};dvSig=''}
+function dvGone(msg){delete sessionStorage.ddp;dcode='';dvStop();diveHome(msg)}
+function dvHome(){dvStop();scr=village;boot()}
+function diveHome(msg){dvStop();scr=diveHome;app.replaceChildren();const c=el('div','card');
+ c.append(el('h2',0,'🧭 Dungeon Dive'),el('p','m','Team up with up to 3 friends. Everyone answers their own question, and all your attacks hit the same monster. Monsters get stronger with every kill. Gold and loot are only kept if you retreat; if the whole party is wiped out you keep your XP only.'));
+ if(msg)c.append(el('p','badc',msg));
+ const nm=el('input');nm.placeholder='Party name';nm.maxLength=24;const mk=el('button',0,'Create a party');
+ mk.onclick=async()=>{mk.disabled=true;try{const r=await api('/api/dive/create','POST',{name:nm.value});dcode=r.code;sessionStorage.ddp=dcode;DV=r;diveStart()}catch(e){diveHome(e.message)}};
+ const cd=el('input');cd.placeholder='4-character code';cd.maxLength=4;cd.style.textTransform='uppercase';const jn=el('button',0,'Join');
+ jn.onclick=async()=>{jn.disabled=true;try{const code=cd.value.trim().toUpperCase();const r=await api('/api/dive/join','POST',{code});dcode=code;sessionStorage.ddp=code;DV=r;diveStart()}catch(e){diveHome(e.message)}};
+ const bk=el('button','alt','← Back to the village');bk.onclick=dvHome;
+ c.append(el('h3',0,'Lead a party'),nm,el('p'),mk,el('h3',0,'Join a party'),cd,el('p'),jn,el('p'),bk);app.append(c)}
+async function dvResume(){try{DV=await dapi('state');diveStart()}catch(e){dvGone(e.message)}}
+function diveStart(){scr=diveStart;dvSig='';clearInterval(dvT);dvT=setInterval(dvPoll,1500);dvRender()}
+async function dvPoll(){if(dvBusy||!DV)return;dvBusy=true;const g=dvGen;try{const r=await dapi('state');if(g!==dvGen||!DV)return;if(r.left)return dvGone('You left the party.');DV=r;dvRender()}catch(e){if(/not in this party|switched off|no party/i.test(e.message))dvGone(e.message)}finally{dvBusy=false}}
+function dvRender(){if(DV.status==='lobby'){const sig='L'+JSON.stringify([DV.members.map(m=>[m.id,m.job,m.level,m.leader]),DV.wipe&&DV.wipe.at,DV.balanced]);if(sig!==dvSig){dvSig=sig;dvLobby()}return}if(dvSig!=='D'){dvSig='D';dvBuild()}dvUpdate()}
+async function dvLeave(ask){if(ask&&!confirm(ask))return;try{await dapi('leave')}catch(e){}dvHome_();}
+function dvHome_(){delete sessionStorage.ddp;dcode='';dvHome()}
+function dvLobby(){U={};app.replaceChildren();const c=el('div','card');c.append(el('h2',0,'🧭 '+DV.name),el('div','mob',DV.code),el('p','m','Party code. Share it so friends can join (up to 4 players).'));
+ if(DV.wipe)c.append(el('p','badc','💀 Your party was wiped out at monster level '+DV.wipe.level+' after '+DV.wipe.depth+' kills. Your XP is kept, but the gold and loot from that run were lost.'));
+ DV.members.forEach(m=>{const r=el('div','row');r.append(pimg(m.job,40),el('span','grow',m.name+(m.leader?' 👑':'')+(m.id===DV.you?' (you)':'')+' · Lv '+m.level+' · '+(m.jobName||m.job)+(m.role?' · '+ROLE[m.role]:'')));c.append(r)});
+ c.append(el('p','m',(DV.balanced?'✅ Balanced party! ':'Bring one of each (melee, ranged, magic, healer) for ')+'+'+Math.round(DV.bonus*100)+'% gold and XP.'),el('p','m','Monsters start at level '+Math.max(...DV.members.map(m=>m.level))+' (the highest level in the party) and go up one level with every monster.'+(DV.leads?' '+[DV.leads.mid>0?'A mid-boss appears every '+DV.leads.mid+' monsters.':'',DV.leads.boss>0?'A boss appears every '+DV.leads.boss+'.':''].join(' '):'')));
+ const lv=el('button','alt','Leave the party');lv.onclick=()=>dvLeave();
+ if(DV.leader===DV.you){const sb=el('button',0,'⚔️ Start the dive');sb.onclick=async()=>{sb.disabled=true;try{DV=await dapi('start');dvSig='';dvRender()}catch(e){alert(e.message);sb.disabled=false}};c.append(sb,' ')}else c.append(el('p','m','Waiting for the leader to start…'));
+ c.append(lv);app.append(c)}
+function dvBuild(){U={qid:-1,hold:false,mname:''};app.replaceChildren();
+ const mc=el('div','card');U.mh=el('h3');U.mi=el('div','mob');U.mb=bar('',100);U.mt=el('div','m');mc.append(U.mh,U.mi,U.mb,U.mt);
+ U.party=el('div','card');U.q=el('div','card');U.res=el('div','card');
+ const ac=el('div','card');U.pack=el('p','m');U.pot=el('button','alt');U.pot.onclick=async()=>{U.pot.disabled=true;try{DV=await dapi('drink');dvRender()}catch(e){alert(e.message)}};
+ U.auto=el('button','alt');U.auto.onclick=async()=>{try{DV=await dapi('auto',{on:!DV.me.auto});dvRender()}catch(e){alert(e.message)}};
+ const rt=el('button','alt','🏃 Retreat & bank my gold');rt.onclick=()=>dvLeave('Retreat to the village? You keep your pack ('+DV.me.pack.gold+' gold) and your party carries on without you.');
+ const hl=el('button','alt','📖 Rules');hl.onclick=()=>help('rules');ac.append(U.pack,U.pot,' ',U.auto,' ',hl,' ',rt);U.log=el('div','card');
+ app.append(mc,U.party,U.q,U.res,ac,U.log)}
+function dvUpdate(){const mon=DV.mon,me=DV.me;
+ if(mon){U.mh.textContent=(mon.kind==='boss'?'👑 BOSS · ':mon.kind==='mid'?'⭐ ':'')+mon.e+' '+mon.name+' · Lv '+mon.level;const k=mon.name+mon.level;if(U.mname!==k){U.mname=k;const i=new Image();i.src='/m/'+mon.img+'.png';i.alt=mon.name;i.style.maxHeight='120px';i.onerror=()=>i.replaceWith(el('span',0,mon.e));U.mi.replaceChildren(i)}
+  setBar(U.mb,mon.hp/mon.max*100);U.mt.textContent='HP '+Math.max(0,mon.hp)+'/'+mon.max+(mon.ansNeed>mon.ca?' · 🛡️ needs '+(mon.ansNeed-mon.ca)+' more correct answer'+(mon.ansNeed-mon.ca>1?'s':'')+' from the party to defeat':'')}
+ else{U.mh.textContent='Next monster: level '+(DV.base+DV.depth)+' in '+Math.max(0,Math.ceil((DV.nextAt-DV.now)/1000))+'s'+(DV.nextKind==='boss'?' — ⚠️ a BOSS is coming!':DV.nextKind==='mid'?' — ⚠️ a mid-boss is coming!':'');U.mname='';U.mi.replaceChildren(el('span',0,'⏳'));setBar(U.mb,0);U.mt.textContent=DV.depth+' monsters defeated this dive'}
+ U.party.replaceChildren(el('h3',0,'👥 '+DV.name+' · '+DV.code),...DV.members.map(m=>{const r=el('div');r.append(el('div',0,(m.alive?'':'💀 ')+m.name+(m.leader?' 👑':'')+(m.id===DV.you?' (you)':'')+' · Lv '+m.level+(m.ca?' · ✅ '+m.ca:'')+' · HP '+m.hp+'/'+m.maxHp),bar('',m.hp/m.maxHp*100));return r}),el('p','m',DV.balanced?'✅ Balanced party: +'+Math.round(DV.bonus*100)+'% gold and XP':'Balanced party (melee, ranged, magic, healer): +'+Math.round(DV.bonus*100)+'% gold and XP'));
+ if(!U.hold){const want=mon&&me.alive&&me.q?me.q.id:null;if(want!==U.qid){U.qid=want;drawDQ()}}
+ U.res.replaceChildren();U.res.hidden=!(DV.last&&!mon);
+ if(!U.res.hidden){const L=DV.last;U.res.append(el('h3',0,'🎉 '+L.name+' (Lv '+L.level+') defeated'+(L.balanced?' · balanced bonus!':'')),...L.shares.map(s=>el('div','m',s.name+': +'+s.gold+' gold, +'+s.xp+' XP'+(s.up?' · ⬆️ level up!':''))),...L.drops.map(d=>{const it=S.items[d.id];return el('div','good',(it?it.e+' '+it.n:d.id)+' → '+d.name+(d.dup?' (already owned: sold for '+d.dup+' gold)':''))}))}
+ const it=me.potion&&S.items[me.potion.id];U.pot.textContent=it?it.e+' Drink '+it.n+' (×'+me.potion.qty+')':'No potion equipped';U.pot.disabled=!it||me.potion.qty<1||!me.alive||!mon;U.auto.textContent='Auto-potion: '+(me.auto?'on':'off');
+ const items=Object.values(me.pack.drops).reduce((a,b)=>a+b,0);U.pack.textContent='🎒 Your pack: '+me.pack.gold+' gold'+(items?', '+items+' item'+(items>1?'s':''):'')+'. Kept only if you retreat; a party wipe loses it (XP is always kept).';
+ U.log.replaceChildren(el('h3',0,'📜 Battle log'),...DV.log.slice().reverse().map(l=>el('div','m',l.text)))}
+function drawDQ(){const q=DV.me.q;U.hold=false;U.q.replaceChildren();
+ if(!DV.mon){U.q.append(el('p','m','Catch your breath… the next monster is on its way.'));return}
+ if(!DV.me.alive){U.q.append(el('p','badc','💀 You’re down. You’ll be back on your feet when the next monster appears.'));return}
+ if(!q)return;U.q.append(el('p','m','Answer correctly for a ×'+DV.me.strikeN+' bonus strike: '+DV.me.bonus+' damage!'));(q.mode===1?m1:q.mode===2?m2:m3)(q)}
+function dvNext(){U.hold=false;U.qid=-1;dvUpdate()}
+async function dsubmit(body){dvGen++;busy=true;try{const r=await dapi('answer',body);if(r.left){dvGone('You left the party.');return null}DV=r;if(r.done)U.hold=true;dvRender();return r}catch(e){dvGen++;U.hold=false;U.qid=-1;if(!/gone|down|no monster/i.test(e.message))alert(e.message);dvBusy=false;dvPoll();return null}finally{busy=false}}
 const wait=ms=>new Promise(r=>setTimeout(r,ms)),drain=()=>q0;
 const fam=()=>{const c=[];for(let y=S.me.job;y;y=S.jobTree[y]&&S.jobTree[y].p)c.push(y);return c};
 const fx=(e,f,o)=>motion&&e&&e.isConnected?e.animate(f,o):null;
@@ -123,8 +179,8 @@ function setMs(f){if(U.ms.dataset.k===f.name)return;U.ms.dataset.k=f.name;U.ms.r
 function paint(){const f=S.fight,m=S.me;if(!f||!U.n||pend)return;U.n.textContent=f.name+' (Lv '+f.level+') · Floor '+f.floor+(f.need&&f.kills<f.need?' · monster '+(f.kills+1)+' of '+f.need:'')+(f.rage?' · 😡 ENRAGED':'');setMs(f);setBars(f.mobHp,m.hp);const it=S.items[m.potion],qn=S.inv[m.potion]||0;U.pot.textContent=it?it.e+' Drink '+it.n+' (×'+qn+')':'No potion equipped';U.pot.disabled=!it||!qn}
 async function drink(){try{const b=S.me.hp;S=await api('/api/game/use','POST',{item:S.me.potion});setDl();queue(S);if(S.fight){numPop('+'+(S.me.hp-b),'heal','p');paint()}else{await drain();go()}}catch(e){}}
 function drawQ(){const q=S.fight.q;U.q.replaceChildren();if(!q){U.q.append(el('p','badc','No questions available.'));return}U.q.append(el('p','m','Answer correctly for a ×'+S.me.strikeN+' bonus strike: '+S.me.bonus+' damage!'));(q.mode===1?m1:q.mode===2?m2:m3)(q)}
-async function submit(body){busy=true;try{const r=await api('/api/game/answer','POST',body);S=r;setDl();queue(r);if(!r.answer){await drain();go();return null}return r}finally{busy=false}}
-function fin(r,box){paint();box.append(el('p',r.answer.correct?'good':'badc',r.answer.correct?'✅ Correct! Bonus strike for '+r.bonus+' damage!':'❌ Not this time.'));const b=el('button',0,'Continue');b.onclick=()=>S.fight?drawQ():go();box.append(b)}
+async function submit(body){if(DV)return dsubmit(body);busy=true;try{const r=await api('/api/game/answer','POST',body);S=r;setDl();queue(r);if(!r.answer){await drain();go();return null}return r}finally{busy=false}}
+function fin(r,box){paint();box.append(el('p',r.answer.correct?'good':'badc',r.answer.correct?'✅ Correct! Bonus strike for '+r.bonus+' damage!':'❌ Not this time.'));const b=el('button',0,'Continue');b.onclick=()=>DV?dvNext():S.fight?drawQ():go();box.append(b)}
 function m1(q){let t=1;const ta=el('textarea');ta.rows=3;const fb=el('div'),go_=el('button',0,'Strike!'),sk=el('button','alt','Show answer');
  U.q.append(el('p',0,'Rewrite with correct dialogue punctuation:'),el('blockquote',0,q.p.prompt),hintBox([1,2,3,4,5,6]),ta,fb,go_,' ',sk);
  const send=async g=>{go_.disabled=sk.disabled=true;try{const r=await submit({qid:q.id,tryNo:t,answer:ta.value,giveUp:g});if(!r)return;const a=r.answer;

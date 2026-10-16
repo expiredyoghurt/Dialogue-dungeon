@@ -45,15 +45,15 @@ async function inv(env, id) {
   const rows = (await db(env).prepare('SELECT item, qty FROM g_inv WHERE pupil_id = ?1 AND qty > 0').bind(id).all()).results || [];
   return Object.fromEntries(rows.map((r) => [r.item, r.qty]));
 }
-const addItem = (env, id, item, d = 1) =>
+export const addItem = (env, id, item, d = 1) =>
   db(env).prepare('INSERT INTO g_inv (pupil_id, item, qty) VALUES (?1, ?2, ?3) ON CONFLICT(pupil_id, item) DO UPDATE SET qty = qty + ?3').bind(id, item, d).run();
-const gear = (pl, cfg) => {
+export const gear = (pl, cfg) => {
   const own = (id) => (ITEMS[id] && canEquip(ITEMS[id], pl.job) ? ITEMS[id] : {});
   const w = own(pl.weapon), a = own(pl.armor), c = own(pl.acc), P = perksOf(pl.job, cfg);
   return { atk: (JOBS[pl.job]?.d || 1) + (w.atk || 0), def: (a.def || 0) + (P.dr || 0), gold: (c.gold || 0) + (P.gold || 0), xp: (c.xp || 0) + (P.xp || 0), heal: c.heal || 0, ip: Math.round((cfg.speed.turn * 1000) / (1 + Math.min(cfg.speed.cap, Math.max(-0.5, (w.spd || 0) + (c.spd || 0) + (P.spd || 0))))), P };
 };
 // perk damage multiplier: rage below half HP, extra damage against mid-bosses and bosses
-const dmgMult = (pl, f, P, cfg) => 1 + (pl.hp < mhOf(pl, cfg) / 2 ? P.rage || 0 : 0) + (MOBS[f.mob] && MOBS[f.mob].kind ? P.boss || 0 : 0);
+export const dmgMult = (pl, f, P, cfg) => 1 + (pl.hp < mhOf(pl, cfg) / 2 ? P.rage || 0 : 0) + (MOBS[f.mob] && MOBS[f.mob].kind ? P.boss || 0 : 0);
 
 export async function getCfg(env) {
   const r = await db(env).prepare("SELECT v FROM g_config WHERE k = 'cfg'").first();
@@ -81,6 +81,9 @@ export async function configSave(request, env) {
   out.boss = { midHp: n(b.boss?.midHp, 1, 100, B.midHp), midDmg: n(b.boss?.midDmg, 0, 20, B.midDmg), bossHp: n(b.boss?.bossHp, 1, 100, B.bossHp), bossDmg: n(b.boss?.bossDmg, 0, 20, B.bossDmg), rageDmg: n(b.boss?.rageDmg, 0, 20, B.rageDmg), lo: n(b.boss?.lo, 0, 10, B.lo), hi: n(b.boss?.hi, 0, 10, B.hi) };
   out.boss.hi = Math.max(out.boss.hi, out.boss.lo);
   out.respawn = !!b.respawn;
+  out.xpMode = b.xpMode === 'damage' ? 'damage' : 'level';
+  const DV = DEFAULT_CFG.dive;
+  out.dive = { on: !!b.dive?.on, hpPer: n(b.dive?.hpPer, 0, 10, DV.hpPer), poolPer: n(b.dive?.poolPer, 0, 10, DV.poolPer), balanced: n(b.dive?.balanced, 0, 5, DV.balanced), gap: n(b.dive?.gap, 2, 60, DV.gap), revive: n(b.dive?.revive, 0, 1, DV.revive), hpScale: b.dive?.hpScale == null ? DV.hpScale : !!b.dive.hpScale, bosses: !!b.dive?.bosses, midEvery: Math.round(n(b.dive?.midEvery, 0, 1000, DV.midEvery)), bossEvery: Math.round(n(b.dive?.bossEvery, 0, 1000, DV.bossEvery)), dropMult: n(b.dive?.dropMult, 0, 20, DV.dropMult) };
   out.strike = n(b.strike, 0, 50, DEFAULT_CFG.strike);
   out.must = { mob: Math.round(n(b.must?.mob, 0, 50, DEFAULT_CFG.must.mob)), mid: Math.round(n(b.must?.mid, 0, 50, DEFAULT_CFG.must.mid)), boss: Math.round(n(b.must?.boss, 0, 50, DEFAULT_CFG.must.boss)) };
   const S1 = DEFAULT_CFG.start;
@@ -118,7 +121,7 @@ export async function configSave(request, env) {
 // Which question modes a floor may use: floors 1-10 mode 1; 11-50 modes 1-2; 51-100 modes 1-3.
 // Each floor tracks (fk['m'+floor], a bitmask) which modes it has served, and leans harder toward the missing ones
 // as the floor runs out of monsters, so every allowed mode shows up at least once per floor.
-const modesFor = (floor) => (floor <= 10 ? [1] : floor <= 50 ? [1, 2] : [1, 2, 3]);
+export const modesFor = (floor) => (floor <= 10 ? [1] : floor <= 50 ? [1, 2] : [1, 2, 3]);
 async function nextQuestion(env, p, exclude, floor, pl) {
   const allowed = modesFor(floor);
   const fk = JSON.parse(pl.floor_kills || '{}');
@@ -206,7 +209,9 @@ async function finish(env, p, pl, f, res) {
   const lo = d.goldMin * f.level, hi = Math.max(lo, d.goldMax * f.level);
   const gs = gentle(pl, cfg); // gentle start: bigger rewards while the pupil is still below the set level
   out.gold = Math.max(1, Math.round((lo + Math.random() * (hi - lo)) * (1 + g.gold) * (gs ? cfg.start.gold : 1)));
-  out.xp = Math.round(d.xp * f.level * (1 + g.xp) * (gs ? cfg.start.xp : 1));
+  const sd = cfg.xpMode === 'damage' ? Math.round(JSON.parse(pl.floor_kills || '{}').sd || 0) : 0;
+  out.xpBonus = Math.round(sd * 0.5); // 'damage' XP mode: 50% of the damage dealt by answer strikes, on top of the fixed XP
+  out.xp = Math.round((d.xp * f.level + sd * 0.5) * (1 + g.xp) * (gs ? cfg.start.xp : 1));
   pl.run_gold += out.gold;
   pl.xp += out.xp;
   pl.kills++;
@@ -297,6 +302,7 @@ async function view(env, p, extra = {}) {
     me: { name: p.name, level: pl.level, xp: pl.xp, need: need(pl.level), hp: pl.hp, maxHp: mhOf(pl, cfg), gold: pl.gold, runGold: pl.run_gold, weapon: pl.weapon, armor: pl.armor, acc: pl.acc, kills: pl.kills, atk: g.atk, strikeN: cfg.strike + (g.P.mult || 0), bonus: Math.round((cfg.strike + (g.P.mult || 0)) * g.atk), def: g.def, job: pl.job, jobs: JSON.parse(pl.jobs), free: points(pl.level) - (JSON.parse(pl.jobs).length - 1), potion: pl.potion, auto: pl.auto, base: JOBS[pl.job].d, perks: g.P, gentle: gentle(pl, cfg) ? { gold: cfg.start.gold, xp: cfg.start.xp, until: cfg.start.levels } : null, stage: shopLv(pl), stageMax: stageOf(JSON.parse(pl.jobs)) },
     inv: await inv(env, p.id),
     floors: { max: top, kills: fk, total: TOP_FLOOR, respawn: !!cfg.respawn },
+    dive: !!cfg.dive.on,
     items: ITEMS,
     ...visibleJobs(JSON.parse(pl.jobs), cfg),
     perkDefs: PERKS,
@@ -338,6 +344,7 @@ async function start(env, p, pl, f, body) {
   const kind = MOBS[mob].kind;
   const hp = Math.max(1, Math.round(hpFor(lv, cfg) * ({ mid: cfg.boss.midHp, boss: cfg.boss.bossHp }[kind] || 1) * (kind && gentle(pl, cfg) ? cfg.start.bossHp : 1)));
   fk.ca = 0; // correct answers so far this fight
+  fk.sd = 0; // damage dealt by answer strikes so far this fight (used by the 'damage' XP mode)
   fk.fs = 0; // per-fight perk counters: first-strike used, monster hits left to skip
   fk.sk = perksOf(pl.job, cfg).skip || 0;
   pl.floor_kills = JSON.stringify(fk);
@@ -443,10 +450,12 @@ async function answer(request, env, p, pl, f, body, events) {
     if (Math.random() < (P.crit || 0)) { bonus *= 2; extra.crit = 1; } // double strike
     fk.fs = 1;
     fk.ca = (fk.ca || 0) + 1; // correct answers this fight
-    pl.floor_kills = JSON.stringify(fk);
     extra.bonus = Math.round(bonus);
+    const hp0 = f.mob_hp;
     f.mob_hp -= extra.bonus;
     if (f.mob_hp <= 0 && fk.ca < mustFor(f.mob, cfg)) f.mob_hp = 1; // needs more correct answers before it can fall
+    fk.sd = (fk.sd || 0) + Math.max(0, hp0 - Math.max(0, f.mob_hp)); // damage actually dealt by this strike (no overkill)
+    pl.floor_kills = JSON.stringify(fk);
     pl.hp = Math.min(mhOf(pl, cfg), pl.hp + Math.round(P.heal || 0));
     if (f.mob_hp <= 0) res = 'win';
   }
