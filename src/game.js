@@ -1,6 +1,7 @@
 // Dialogue Dungeon game API. The server owns all combat state; the browser only displays it.
 import { HttpError, json, readJson, int } from './util.js';
 import * as pupil from './pupil.js';
+import { storyState, markSeen, bossLabel } from './story.js';
 import { TURN_MS, TOP_FLOOR, MAX_DROP, DEFAULT_CFG, cfgFrom, hpFor, floorInfo, need, maxHp, ITEMS, MOBS, JOBS, points, canUse, shopFor, stageOf, perksOf, mhOf, canEquip, PERKS, BASE, applyItems, RANGED } from './gamedata.js';
 
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -81,6 +82,7 @@ export async function configSave(request, env) {
   out.boss = { midHp: n(b.boss?.midHp, 1, 100, B.midHp), midDmg: n(b.boss?.midDmg, 0, 20, B.midDmg), bossHp: n(b.boss?.bossHp, 1, 100, B.bossHp), bossDmg: n(b.boss?.bossDmg, 0, 20, B.bossDmg), rageDmg: n(b.boss?.rageDmg, 0, 20, B.rageDmg), lo: n(b.boss?.lo, 0, 10, B.lo), hi: n(b.boss?.hi, 0, 10, B.hi) };
   out.boss.hi = Math.max(out.boss.hi, out.boss.lo);
   out.respawn = !!b.respawn;
+  out.story = b.story == null ? true : !!b.story;
   out.xpMode = b.xpMode === 'damage' ? 'damage' : 'level';
   const DV = DEFAULT_CFG.dive;
   out.dive = { on: !!b.dive?.on, hpPer: n(b.dive?.hpPer, 0, 10, DV.hpPer), poolPer: n(b.dive?.poolPer, 0, 10, DV.poolPer), balanced: n(b.dive?.balanced, 0, 5, DV.balanced), gap: n(b.dive?.gap, 2, 60, DV.gap), revive: n(b.dive?.revive, 0, 1, DV.revive), hpScale: b.dive?.hpScale == null ? DV.hpScale : !!b.dive.hpScale, bosses: !!b.dive?.bosses, midEvery: Math.round(n(b.dive?.midEvery, 0, 1000, DV.midEvery)), bossEvery: Math.round(n(b.dive?.bossEvery, 0, 1000, DV.bossEvery)), dropMult: n(b.dive?.dropMult, 0, 20, DV.dropMult) };
@@ -296,13 +298,14 @@ async function view(env, p, extra = {}) {
       if (q) await db(env).prepare('UPDATE g_fight SET qid = ?2 WHERE pupil_id = ?1').bind(p.id, q.id).run();
     }
     const m = MOBS[f.mob] || MOBS.slime; // (fights saved before the monster change fall back to a slime)
-    fight = { name: m.n, e: m.e, img: m.img || null, level: f.level, mobHp: f.mob_hp, mobMax: f.mob_max, floor: f.floor, kind: m.kind || null, rage: m.kind === 'boss' && f.mob_hp < f.mob_max * 0.5, kills: fk[f.floor] || 0, need: fk['n' + f.floor], ca: fk.ca || 0, ansNeed: mustFor(f.mob, cfg), pNext: f.p_next, mNext: f.m_next, ip: g.ip, im: Math.round((cfg.speed.turn * 1000) / (1 + cfg.speed.monster)), ranged: RANGED.has(pl.job), now: Date.now(), q };
+    fight = { name: bossLabel(f.floor, m.kind, m.n, cfg.story), e: m.e, img: m.img || null, level: f.level, mobHp: f.mob_hp, mobMax: f.mob_max, floor: f.floor, kind: m.kind || null, rage: m.kind === 'boss' && f.mob_hp < f.mob_max * 0.5, kills: fk[f.floor] || 0, need: fk['n' + f.floor], ca: fk.ca || 0, ansNeed: mustFor(f.mob, cfg), pNext: f.p_next, mNext: f.m_next, ip: g.ip, im: Math.round((cfg.speed.turn * 1000) / (1 + cfg.speed.monster)), ranged: RANGED.has(pl.job), now: Date.now(), q };
   }
   return json({
     me: { name: p.name, level: pl.level, xp: pl.xp, need: need(pl.level), hp: pl.hp, maxHp: mhOf(pl, cfg), gold: pl.gold, runGold: pl.run_gold, weapon: pl.weapon, armor: pl.armor, acc: pl.acc, kills: pl.kills, atk: g.atk, strikeN: cfg.strike + (g.P.mult || 0), bonus: Math.round((cfg.strike + (g.P.mult || 0)) * g.atk), def: g.def, job: pl.job, jobs: JSON.parse(pl.jobs), free: points(pl.level) - (JSON.parse(pl.jobs).length - 1), potion: pl.potion, auto: pl.auto, base: JOBS[pl.job].d, perks: g.P, gentle: gentle(pl, cfg) ? { gold: cfg.start.gold, xp: cfg.start.xp, until: cfg.start.levels } : null, stage: shopLv(pl), stageMax: stageOf(JSON.parse(pl.jobs)) },
     inv: await inv(env, p.id),
     floors: { max: top, kills: fk, total: TOP_FLOOR, respawn: !!cfg.respawn },
     dive: !!cfg.dive.on,
+    story: storyState(pl.level, fk, cfg.story),
     items: ITEMS,
     ...visibleJobs(JSON.parse(pl.jobs), cfg),
     perkDefs: PERKS,
@@ -357,6 +360,16 @@ async function start(env, p, pl, f, body) {
     .prepare('INSERT INTO g_fight (pupil_id, mob, level, mob_hp, mob_max, floor, last_tick, qid, p_next, m_next) VALUES (?1,?2,?3,?4,?4,?5,?6,?7,?8,?9)')
     .bind(p.id, mob, lv, hp, n, now, q.id, pn, mn)
     .run();
+}
+
+// The Hush story: records the scenes the pupil has just been shown and returns the full text of everything unlocked so far.
+async function story(env, pl, body) {
+  const cfg = await getCfg(env), fk = JSON.parse(pl.floor_kills || '{}');
+  if (cfg.story && markSeen(pl.level, fk, body.seen)) {
+    pl.floor_kills = JSON.stringify(fk);
+    await save(env, pl);
+  }
+  return json({ story: storyState(pl.level, fk, cfg.story, true) });
 }
 
 // Back to the village: the pack's gold is banked and HP is restored.
@@ -470,7 +483,7 @@ async function answer(request, env, p, pl, f, body, events) {
 
 export async function route(request, env, p, path, m) {
   const a = path.slice('/api/game/'.length);
-  if (!['state', 'sync', 'start', 'answer', 'buy', 'slot', 'job', 'unlock', 'auto', 'use', 'upgrade', 'leave'].includes(a)) throw new HttpError(404, 'Not found.');
+  if (!['state', 'sync', 'start', 'answer', 'buy', 'slot', 'job', 'unlock', 'auto', 'use', 'upgrade', 'leave', 'story'].includes(a)) throw new HttpError(404, 'Not found.');
   if ((a === 'state') !== (m === 'GET')) throw new HttpError(405, 'Wrong method.');
   const body = m === 'POST' ? await readJson(request) : {};
   await getCfg(env);
@@ -486,6 +499,7 @@ export async function route(request, env, p, path, m) {
     case 'upgrade': await upgrade(env, pl, f); break;
     case 'auto': pl.auto = body.on ? 1 : 0; await save(env, pl); break;
     case 'use': await use(env, p, pl, body); break;
+    case 'story': return story(env, pl, body);
     case 'answer': return answer(request, env, p, pl, f, body, events);
   }
   return view(env, p, { events });

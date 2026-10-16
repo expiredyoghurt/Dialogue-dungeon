@@ -155,6 +155,8 @@ export const DEFAULT_CFG = {
   // Monsters respawn: when on, fleeing to the village, returning to it between fights, or being defeated wipes the kill count of any floor
   // that is not cleared yet, so the pupil must fight all of its monsters again. Off (default): kills on a floor are kept.
   respawn: false,
+  // The Hush story (src/story.js): narrative scenes at Level 10, 20 ... 100 and on boss floors. A teacher can switch it off.
+  story: true,
   // XP mode: 'level' (default) = fixed XP by monster level; 'damage' = that, plus 50% of the damage dealt to the monster by answer strikes
   // (basic attacks don't count; damage is what the strike actually took off, so overkill is not counted).
   xpMode: 'level',
@@ -196,6 +198,7 @@ export const cfgFrom = (raw) => {
     if (raw.mobs) c.mobs = raw.mobs;
     if (raw.floors && raw.floors.length) c.floors = raw.floors;
     if (raw.respawn != null) c.respawn = !!raw.respawn;
+    if (raw.story != null) c.story = !!raw.story;
     if (raw.xpMode === 'damage') c.xpMode = 'damage';
     if (raw.dive) Object.assign(c.dive, raw.dive);
     if (Number.isFinite(Number(raw.strike)) && raw.strike !== null && raw.strike !== '') c.strike = Number(raw.strike);
